@@ -33,7 +33,7 @@ export default function HomeScreen() {
 
             <Pressable
               style={styles.cartButton}
-              onPress={() => router.push("/cart" as const)}
+              onPress={() => router.push({ pathname: "/cart" })}
             >
               <Ionicons name="bag-outline" size={22} color="#111827" />
 
