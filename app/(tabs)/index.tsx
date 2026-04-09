@@ -1,98 +1,265 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import ProductCard from "@/components/home/ProductCard";
+import { PRODUCTS } from "@/constants/mockData";
+import { useCartStore } from "@/store/cartStore";
+import { Ionicons } from "@expo/vector-icons";
+import { router } from "expo-router";
+import {
+  FlatList,
+  Image,
+  Pressable,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+const categories = ["Skincare", "Makeup", "Haircare", "Body Care", "Fragrance"];
 
 export default function HomeScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+  const items = useCartStore((state) => state.items);
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+  const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      <ScrollView showsVerticalScrollIndicator={false}>
+        <View style={styles.container}>
+          <View style={styles.header}>
+            <View>
+              <Text style={styles.welcome}>Welcome to</Text>
+              <Text style={styles.brand}>Kittik Beauty</Text>
+            </View>
+
+            <Pressable
+              style={styles.cartButton}
+              onPress={() => router.push("/cart" as const)}
+            >
+              <Ionicons name="bag-outline" size={22} color="#111827" />
+
+              {totalItems > 0 && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{totalItems}</Text>
+                </View>
+              )}
+            </Pressable>
+          </View>
+
+          <View style={styles.searchBar}>
+            <Ionicons name="search-outline" size={18} color="#9ca3af" />
+            <TextInput
+              placeholder="Search skincare, makeup..."
+              placeholderTextColor="#9ca3af"
+              style={styles.input}
+            />
+          </View>
+
+          <View style={styles.heroCard}>
+            <View style={styles.heroTextWrap}>
+              <Text style={styles.heroLabel}>Spring Edit</Text>
+              <Text style={styles.heroTitle}>
+                Gina Hina Furba into your best skin
+              </Text>
+              <Text style={styles.heroSubtext}>
+                Premium beauty picks curated for your daily routine.
+              </Text>
+
+              <Pressable style={styles.shopNowBtn}>
+                <Text style={styles.shopNowText}>Shop Now</Text>
+              </Pressable>
+            </View>
+
+            <Image
+              source={{
+                uri: "https://images.unsplash.com/photo-1522337660859-02fbefca4702?q=80&w=800&auto=format&fit=crop",
+              }}
+              style={styles.heroImage}
+            />
+          </View>
+
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Categories</Text>
+          </View>
+
+          <FlatList
+            data={categories}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            keyExtractor={(item) => item}
+            contentContainerStyle={styles.categoryList}
+            renderItem={({ item }) => (
+              <Pressable style={styles.categoryPill}>
+                <Text style={styles.categoryPillText}>{item}</Text>
+              </Pressable>
+            )}
+          />
+
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Featured Products</Text>
+            <Text style={styles.sectionLink}>See All</Text>
+          </View>
+
+          <View style={styles.productGrid}>
+            {PRODUCTS.map((product) => (
+              <ProductCard key={product.id} product={product} />
+            ))}
+          </View>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  badge: {
+    position: "absolute",
+    top: -6,
+    right: -6,
+    backgroundColor: "#d96c8a",
+    borderRadius: 999,
+    minWidth: 18,
+    height: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 4,
   },
-  stepContainer: {
-    gap: 8,
+
+  badgeText: {
+    color: "#fff",
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  safeArea: {
+    flex: 1,
+    backgroundColor: "#fff7f8",
+  },
+  container: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 32,
+  },
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 18,
+  },
+  welcome: {
+    fontSize: 14,
+    color: "#6b7280",
+  },
+  brand: {
+    fontSize: 28,
+    fontWeight: "700",
+    color: "#111827",
+    marginTop: 4,
+  },
+  cartButton: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: "#ffffff",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  searchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#ffffff",
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    height: 52,
+    marginBottom: 18,
+  },
+  input: {
+    flex: 1,
+    marginLeft: 8,
+    color: "#111827",
+  },
+  heroCard: {
+    backgroundColor: "#f9dbe4",
+    borderRadius: 24,
+    padding: 18,
+    marginBottom: 24,
+    overflow: "hidden",
+  },
+  heroTextWrap: {
+    width: "56%",
+    zIndex: 2,
+  },
+  heroLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#b45372",
     marginBottom: 8,
+    textTransform: "uppercase",
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
+  heroTitle: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#111827",
+    lineHeight: 30,
+    marginBottom: 10,
+  },
+  heroSubtext: {
+    fontSize: 14,
+    color: "#4b5563",
+    lineHeight: 20,
+    marginBottom: 14,
+  },
+  shopNowBtn: {
+    backgroundColor: "#d96c8a",
+    alignSelf: "flex-start",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 999,
+  },
+  shopNowText: {
+    color: "#fff",
+    fontWeight: "600",
+  },
+  heroImage: {
+    position: "absolute",
+    right: 0,
     bottom: 0,
-    left: 0,
-    position: 'absolute',
+    width: 150,
+    height: 190,
+    borderTopLeftRadius: 24,
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 14,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#111827",
+  },
+  sectionLink: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#d96c8a",
+  },
+  categoryList: {
+    paddingBottom: 22,
+  },
+  categoryPill: {
+    backgroundColor: "#ffffff",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 999,
+    marginRight: 10,
+  },
+  categoryPillText: {
+    color: "#374151",
+    fontWeight: "500",
+    fontSize: 14,
+  },
+  productGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
   },
 });
