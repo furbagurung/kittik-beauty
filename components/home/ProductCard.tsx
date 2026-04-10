@@ -10,7 +10,8 @@ type ProductCardProps = {
 export default function ProductCard({ product }: ProductCardProps) {
   return (
     <Pressable
-      style={styles.card}
+      style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
+      android_ripple={{ color: "#f3e8ee" }}
       onPress={() =>
         router.push({ pathname: "/product/[id]", params: { id: product.id } })
       }
@@ -44,6 +45,10 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     marginBottom: 14,
   },
+  cardPressed: {
+    opacity: 0.92,
+    transform: [{ scale: 0.985 }],
+  },
   image: {
     width: "100%",
     height: 170,
@@ -56,6 +61,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#9ca3af",
     marginBottom: 6,
+    textTransform: "uppercase",
   },
   name: {
     fontSize: 15,

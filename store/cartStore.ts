@@ -1,6 +1,8 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { create } from "zustand";
+import { createJSONStorage, persist } from "zustand/middleware";
 
-type CartItem = {
+export type CartItem = {
   id: string;
   name: string;
   price: number;
@@ -10,6 +12,7 @@ type CartItem = {
 
 type CartStore = {
   items: CartItem[];
+  hydrated: boolean;
   addToCart: (item: CartItem) => void;
   increaseQty: (id: string) => void;
   decreaseQty: (id: string) => void;
@@ -17,53 +20,72 @@ type CartStore = {
   clearCart: () => void;
   totalItems: () => number;
   totalPrice: () => number;
+  setHydrated: (value: boolean) => void;
 };
 
-export const useCartStore = create<CartStore>((set, get) => ({
-  items: [],
+export const useCartStore = create<CartStore>()(
+  persist(
+    (set, get) => ({
+      items: [],
+      hydrated: false,
 
-  addToCart: (item) =>
-    set((state) => {
-      const existing = state.items.find((i) => i.id === item.id);
+      setHydrated: (value) => set({ hydrated: value }),
 
-      if (existing) {
-        return {
+      addToCart: (item) =>
+        set((state) => {
+          const existing = state.items.find((i) => i.id === item.id);
+
+          if (existing) {
+            return {
+              items: state.items.map((i) =>
+                i.id === item.id
+                  ? { ...i, quantity: i.quantity + item.quantity }
+                  : i,
+              ),
+            };
+          }
+
+          return {
+            items: [...state.items, item],
+          };
+        }),
+
+      increaseQty: (id) =>
+        set((state) => ({
           items: state.items.map((i) =>
-            i.id === item.id
-              ? { ...i, quantity: i.quantity + item.quantity }
-              : i,
+            i.id === id ? { ...i, quantity: i.quantity + 1 } : i,
           ),
-        };
-      }
+        })),
 
-      return {
-        items: [...state.items, item],
-      };
+      decreaseQty: (id) =>
+        set((state) => ({
+          items: state.items.map((i) =>
+            i.id === id ? { ...i, quantity: Math.max(1, i.quantity - 1) } : i,
+          ),
+        })),
+
+      removeItem: (id) =>
+        set((state) => ({
+          items: state.items.filter((i) => i.id !== id),
+        })),
+
+      clearCart: () => set({ items: [] }),
+
+      totalItems: () =>
+        get().items.reduce((sum, item) => sum + item.quantity, 0),
+
+      totalPrice: () =>
+        get().items.reduce((sum, item) => sum + item.price * item.quantity, 0),
     }),
-
-  increaseQty: (id) =>
-    set((state) => ({
-      items: state.items.map((i) =>
-        i.id === id ? { ...i, quantity: i.quantity + 1 } : i,
-      ),
-    })),
-
-  decreaseQty: (id) =>
-    set((state) => ({
-      items: state.items.map((i) =>
-        i.id === id ? { ...i, quantity: Math.max(1, i.quantity - 1) } : i,
-      ),
-    })),
-
-  removeItem: (id) =>
-    set((state) => ({
-      items: state.items.filter((i) => i.id !== id),
-    })),
-
-  clearCart: () => set({ items: [] }),
-
-  totalItems: () => get().items.reduce((sum, item) => sum + item.quantity, 0),
-
-  totalPrice: () =>
-    get().items.reduce((sum, item) => sum + item.price * item.quantity, 0),
-}));
+    {
+      name: "kittik-beauty-cart",
+      storage: createJSONStorage(() => AsyncStorage),
+      partialize: (state) => ({
+        items: state.items,
+      }),
+      onRehydrateStorage: () => (state) => {
+        state?.setHydrated(true);
+      },
+    },
+  ),
+);

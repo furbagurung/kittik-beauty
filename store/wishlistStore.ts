@@ -1,6 +1,8 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { create } from "zustand";
+import { createJSONStorage, persist } from "zustand/middleware";
 
-type WishlistItem = {
+export type WishlistItem = {
   id: string;
   name: string;
   price: number;
@@ -11,33 +13,55 @@ type WishlistItem = {
 
 type WishlistStore = {
   items: WishlistItem[];
+  hydrated: boolean;
   toggleWishlist: (item: WishlistItem) => void;
   isInWishlist: (id: string) => boolean;
   removeFromWishlist: (id: string) => void;
+  clearWishlist: () => void;
+  setHydrated: (value: boolean) => void;
 };
 
-export const useWishlistStore = create<WishlistStore>((set, get) => ({
-  items: [],
+export const useWishlistStore = create<WishlistStore>()(
+  persist(
+    (set, get) => ({
+      items: [],
+      hydrated: false,
 
-  toggleWishlist: (item) =>
-    set((state) => {
-      const exists = state.items.some((i) => i.id === item.id);
+      setHydrated: (value) => set({ hydrated: value }),
 
-      if (exists) {
-        return {
-          items: state.items.filter((i) => i.id !== item.id),
-        };
-      }
+      toggleWishlist: (item) =>
+        set((state) => {
+          const exists = state.items.some((i) => i.id === item.id);
 
-      return {
-        items: [...state.items, item],
-      };
+          if (exists) {
+            return {
+              items: state.items.filter((i) => i.id !== item.id),
+            };
+          }
+
+          return {
+            items: [...state.items, item],
+          };
+        }),
+
+      isInWishlist: (id) => get().items.some((item) => item.id === id),
+
+      removeFromWishlist: (id) =>
+        set((state) => ({
+          items: state.items.filter((item) => item.id !== id),
+        })),
+
+      clearWishlist: () => set({ items: [] }),
     }),
-
-  isInWishlist: (id) => get().items.some((item) => item.id === id),
-
-  removeFromWishlist: (id) =>
-    set((state) => ({
-      items: state.items.filter((item) => item.id !== id),
-    })),
-}));
+    {
+      name: "kittik-beauty-wishlist",
+      storage: createJSONStorage(() => AsyncStorage),
+      partialize: (state) => ({
+        items: state.items,
+      }),
+      onRehydrateStorage: () => (state) => {
+        state?.setHydrated(true);
+      },
+    },
+  ),
+);

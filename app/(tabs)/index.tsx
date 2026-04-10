@@ -1,8 +1,10 @@
 import ProductCard from "@/components/home/ProductCard";
+
 import { PRODUCTS } from "@/constants/mockData";
 import { useCartStore } from "@/store/cartStore";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
+import { useRef, useState } from "react";
 import {
   FlatList,
   Image,
@@ -15,15 +17,41 @@ import {
   View,
 } from "react-native";
 
-const categories = ["Skincare", "Makeup", "Haircare", "Body Care", "Fragrance"];
+const categories = [
+  "All",
+  "Skincare",
+  "Makeup",
+  "Haircare",
+  "Body Care",
+  "Fragrance",
+];
 
 export default function HomeScreen() {
   const items = useCartStore((state) => state.items);
-
+  const [selectedCategory, setSelectedCategory] = useState("All");
+  const [searchQuery, setSearchQuery] = useState("");
+  const scrollRef = useRef<ScrollView>(null);
   const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
+  const filteredProducts = PRODUCTS.filter((product) => {
+    const matchesCategory =
+      selectedCategory === "All" || product.category === selectedCategory;
+
+    const matchesSearch = product.name
+      .toLowerCase()
+      .includes(searchQuery.toLowerCase());
+
+    return matchesCategory && matchesSearch;
+  });
+  const scrollToProducts = () => {
+    scrollRef.current?.scrollTo({
+      y: 500,
+      animated: true,
+    });
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false}>
         <View style={styles.container}>
           <View style={styles.header}>
             <View>
@@ -51,20 +79,25 @@ export default function HomeScreen() {
               placeholder="Search skincare, makeup..."
               placeholderTextColor="#9ca3af"
               style={styles.input}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
             />
+            {searchQuery.length > 0 && (
+              <Pressable onPress={() => setSearchQuery("")}>
+                <Ionicons name="close-circle" size={18} color="#9ca3af" />
+              </Pressable>
+            )}
           </View>
 
           <View style={styles.heroCard}>
             <View style={styles.heroTextWrap}>
               <Text style={styles.heroLabel}>Spring Edit</Text>
-              <Text style={styles.heroTitle}>
-                Gina Hina Furba into your best skin
-              </Text>
+              <Text style={styles.heroTitle}>Glow into your best skin</Text>
               <Text style={styles.heroSubtext}>
                 Premium beauty picks curated for your daily routine.
               </Text>
 
-              <Pressable style={styles.shopNowBtn}>
+              <Pressable style={styles.shopNowBtn} onPress={scrollToProducts}>
                 <Text style={styles.shopNowText}>Shop Now</Text>
               </Pressable>
             </View>
@@ -87,23 +120,61 @@ export default function HomeScreen() {
             showsHorizontalScrollIndicator={false}
             keyExtractor={(item) => item}
             contentContainerStyle={styles.categoryList}
-            renderItem={({ item }) => (
-              <Pressable style={styles.categoryPill}>
-                <Text style={styles.categoryPillText}>{item}</Text>
-              </Pressable>
-            )}
+            renderItem={({ item }) => {
+              const isActive = selectedCategory === item;
+
+              return (
+                <Pressable
+                  style={[
+                    styles.categoryPill,
+                    isActive && styles.categoryPillActive,
+                  ]}
+                  onPress={() => setSelectedCategory(item)}
+                >
+                  <Text
+                    style={[
+                      styles.categoryPillText,
+                      isActive && styles.categoryPillTextActive,
+                    ]}
+                  >
+                    {item}
+                  </Text>
+                </Pressable>
+              );
+            }}
           />
 
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Featured Products</Text>
-            <Text style={styles.sectionLink}>See All</Text>
+            <Pressable
+              onPress={() =>
+                router.push({
+                  pathname: "/products",
+                  params:
+                    selectedCategory !== "All"
+                      ? { category: selectedCategory }
+                      : {},
+                })
+              }
+            >
+              <Text style={styles.sectionLink}>See All</Text>
+            </Pressable>
           </View>
 
-          <View style={styles.productGrid}>
-            {PRODUCTS.map((product) => (
-              <ProductCard key={product.id} product={product} />
-            ))}
-          </View>
+          {filteredProducts.length > 0 ? (
+            <View style={styles.productGrid}>
+              {filteredProducts.map((product) => (
+                <ProductCard key={product.id} product={product} />
+              ))}
+            </View>
+          ) : (
+            <View style={styles.productsEmpty}>
+              <Text style={styles.productsEmptyTitle}>No products found</Text>
+              <Text style={styles.productsEmptyText}>
+                Try a different search or category.
+              </Text>
+            </View>
+          )}
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -252,14 +323,37 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     marginRight: 10,
   },
+  categoryPillActive: {
+    backgroundColor: "#d96c8a",
+  },
   categoryPillText: {
     color: "#374151",
     fontWeight: "500",
     fontSize: 14,
   },
+  categoryPillTextActive: {
+    color: "#ffffff",
+    fontWeight: "700",
+  },
   productGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
+  },
+  productsEmpty: {
+    backgroundColor: "#ffffff",
+    borderRadius: 18,
+    padding: 20,
+    alignItems: "center",
+  },
+  productsEmptyTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#111827",
+    marginBottom: 6,
+  },
+  productsEmptyText: {
+    fontSize: 13,
+    color: "#6b7280",
   },
 });

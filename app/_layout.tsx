@@ -22,6 +22,10 @@ export default function RootLayout() {
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="cart" options={{ title: "Cart" }} />
         <Stack.Screen name="checkout" options={{ title: "Checkout" }} />
+        <Stack.Screen name="orders" options={{ title: "Orders" }} />
+        <Stack.Screen name="order/[id]" options={{ title: "Order Details" }} />
+        <Stack.Screen name="products" options={{ title: "All Products" }} />
+
         <Stack.Screen
           name="order-success"
           options={{ title: "Order Success" }}
@@ -29,6 +33,10 @@ export default function RootLayout() {
         <Stack.Screen
           name="product/[id]"
           options={{ title: "Product Details" }}
+        />
+        <Stack.Screen
+          name="payment-confirmation"
+          options={{ title: "Payment Confirmation" }}
         />
       </Stack>
       <StatusBar style="auto" />

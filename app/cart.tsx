@@ -2,6 +2,7 @@ import { useCartStore } from "@/store/cartStore";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import {
+  ActivityIndicator,
   FlatList,
   Image,
   Pressable,
@@ -12,10 +13,12 @@ import {
 } from "react-native";
 
 export default function CartScreen() {
+  const hydrated = useCartStore((state) => state.hydrated);
   const items = useCartStore((state) => state.items);
   const increaseQty = useCartStore((state) => state.increaseQty);
   const decreaseQty = useCartStore((state) => state.decreaseQty);
   const removeItem = useCartStore((state) => state.removeItem);
+  const totalItems = useCartStore((state) => state.totalItems);
 
   const formatPrice = (value: number) =>
     new Intl.NumberFormat("en-NP", {
@@ -24,10 +27,43 @@ export default function CartScreen() {
       maximumFractionDigits: 0,
     }).format(value);
 
+  if (!hydrated) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <Pressable
+            style={styles.backButton}
+            onPress={() => {
+              if (router.canGoBack()) {
+                router.back();
+              } else {
+                router.replace("/(tabs)");
+              }
+            }}
+          >
+            <Ionicons name="arrow-back" size={20} color="#111827" />
+          </Pressable>
+
+          <Text style={styles.title}>Your Cart</Text>
+
+          <View style={styles.headerSpacer} />
+        </View>
+
+        <View style={styles.loaderWrap}>
+          <ActivityIndicator size="large" color="#d96c8a" />
+          <Text style={styles.loaderText}>Loading your cart...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   const cartTotal = items.reduce(
     (sum, item) => sum + item.price * item.quantity,
     0,
   );
+
+  const itemCount = totalItems();
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
@@ -37,7 +73,7 @@ export default function CartScreen() {
             if (router.canGoBack()) {
               router.back();
             } else {
-              router.replace("/");
+              router.replace("/(tabs)");
             }
           }}
         >
@@ -53,9 +89,12 @@ export default function CartScreen() {
         data={items}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.listContent}
+        showsVerticalScrollIndicator={false}
         ListEmptyComponent={
           <View style={styles.emptyWrap}>
-            <Ionicons name="bag-outline" size={44} color="#d1d5db" />
+            <View style={styles.emptyIconWrap}>
+              <Ionicons name="bag-outline" size={28} color="#d96c8a" />
+            </View>
             <Text style={styles.emptyTitle}>Your cart is empty</Text>
             <Text style={styles.emptySubtext}>
               Looks like you haven’t added anything yet.
@@ -63,7 +102,7 @@ export default function CartScreen() {
 
             <Pressable
               style={styles.continueBtn}
-              onPress={() => router.replace("/")}
+              onPress={() => router.replace("/(tabs)")}
             >
               <Text style={styles.continueBtnText}>Continue Shopping</Text>
             </Pressable>
@@ -75,7 +114,9 @@ export default function CartScreen() {
 
             <View style={styles.cardContent}>
               <View style={styles.topRow}>
-                <Text style={styles.name}>{item.name}</Text>
+                <Text style={styles.name} numberOfLines={2}>
+                  {item.name}
+                </Text>
 
                 <Pressable onPress={() => removeItem(item.id)}>
                   <Text style={styles.removeText}>Remove</Text>
@@ -112,13 +153,29 @@ export default function CartScreen() {
 
       {items.length > 0 && (
         <View style={styles.footer}>
-          <Text style={styles.total}>Total: {formatPrice(cartTotal)}</Text>
+          <View style={styles.footerTop}>
+            <View>
+              <Text style={styles.footerLabel}>
+                {itemCount} {itemCount === 1 ? "item" : "items"}
+              </Text>
+              <Text style={styles.total}>{formatPrice(cartTotal)}</Text>
+            </View>
+
+            <View style={styles.footerPill}>
+              <Ionicons
+                name="shield-checkmark-outline"
+                size={14}
+                color="#d96c8a"
+              />
+              <Text style={styles.footerPillText}>Saved Cart</Text>
+            </View>
+          </View>
 
           <Pressable
             style={styles.checkoutBtn}
             onPress={() => router.push({ pathname: "/checkout" })}
           >
-            <Text style={styles.checkoutText}>Checkout</Text>
+            <Text style={styles.checkoutText}>Proceed to Checkout</Text>
           </Pressable>
         </View>
       )}
@@ -154,21 +211,43 @@ const styles = StyleSheet.create({
   headerSpacer: {
     width: 40,
   },
+  loaderWrap: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 24,
+  },
+  loaderText: {
+    marginTop: 14,
+    fontSize: 14,
+    color: "#6b7280",
+    fontWeight: "600",
+  },
   listContent: {
     padding: 16,
     paddingBottom: 24,
+    flexGrow: 1,
   },
   emptyWrap: {
     alignItems: "center",
     justifyContent: "center",
+    flex: 1,
     paddingTop: 56,
     paddingHorizontal: 24,
+  },
+  emptyIconWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "#fff1f5",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
   },
   emptyTitle: {
     fontSize: 20,
     fontWeight: "700",
     color: "#111827",
-    marginTop: 16,
     marginBottom: 8,
   },
   emptySubtext: {
@@ -194,33 +273,37 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     backgroundColor: "#fff",
     padding: 12,
-    borderRadius: 14,
+    borderRadius: 18,
     alignItems: "flex-start",
   },
   image: {
-    width: 70,
-    height: 70,
-    borderRadius: 10,
+    width: 76,
+    height: 76,
+    borderRadius: 12,
     marginRight: 12,
+    backgroundColor: "#f3f4f6",
   },
   cardContent: {
     flex: 1,
-  },
-  name: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#111827",
-  },
-  price: {
-    fontSize: 13,
-    color: "#6b7280",
-    marginVertical: 4,
   },
   topRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
     gap: 10,
+    marginBottom: 2,
+  },
+  name: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#111827",
+    lineHeight: 20,
+  },
+  price: {
+    fontSize: 13,
+    color: "#6b7280",
+    marginVertical: 4,
   },
   subtotal: {
     fontSize: 13,
@@ -235,9 +318,9 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   qtyControl: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: "#f3f4f6",
     alignItems: "center",
     justifyContent: "center",
@@ -252,7 +335,7 @@ const styles = StyleSheet.create({
     minWidth: 20,
     textAlign: "center",
     fontSize: 14,
-    fontWeight: "600",
+    fontWeight: "700",
     color: "#111827",
   },
   removeText: {
@@ -264,22 +347,48 @@ const styles = StyleSheet.create({
     padding: 16,
     borderTopWidth: 1,
     borderColor: "#eee",
-    backgroundColor: "#fff7f8",
+    backgroundColor: "#fffafb",
+  },
+  footerTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+    gap: 12,
+  },
+  footerLabel: {
+    fontSize: 13,
+    color: "#6b7280",
+    marginBottom: 4,
   },
   total: {
-    fontSize: 18,
-    fontWeight: "700",
-    marginBottom: 12,
+    fontSize: 20,
+    fontWeight: "800",
     color: "#111827",
+  },
+  footerPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#fff1f5",
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 999,
+  },
+  footerPillText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#d96c8a",
   },
   checkoutBtn: {
     backgroundColor: "#d96c8a",
-    padding: 14,
+    paddingVertical: 15,
     borderRadius: 999,
     alignItems: "center",
   },
   checkoutText: {
     color: "#fff",
     fontWeight: "700",
+    fontSize: 15,
   },
 });

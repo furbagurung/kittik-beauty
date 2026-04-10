@@ -1,7 +1,11 @@
+import { useWishlistStore } from "@/store/wishlistStore";
 import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
+import { StyleSheet, Text, View } from "react-native";
 
 export default function TabsLayout() {
+  const wishlistCount = useWishlistStore((state) => state.items.length);
+
   return (
     <Tabs
       screenOptions={{
@@ -46,7 +50,16 @@ export default function TabsLayout() {
         options={{
           title: "Wishlist",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="heart-outline" size={size} color={color} />
+            <View style={styles.iconWrap}>
+              <Ionicons name="heart-outline" size={size} color={color} />
+              {wishlistCount > 0 && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>
+                    {wishlistCount > 9 ? "9+" : wishlistCount}
+                  </Text>
+                </View>
+              )}
+            </View>
           ),
         }}
       />
@@ -63,3 +76,31 @@ export default function TabsLayout() {
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  iconWrap: {
+    position: "relative",
+    width: 26,
+    height: 26,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  badge: {
+    position: "absolute",
+    top: -4,
+    right: -8,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 999,
+    backgroundColor: "#d96c8a",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 4,
+  },
+  badgeText: {
+    color: "#ffffff",
+    fontSize: 9,
+    fontWeight: "700",
+    lineHeight: 11,
+  },
+});
