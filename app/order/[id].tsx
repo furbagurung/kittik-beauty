@@ -86,10 +86,8 @@ export default function OrderDetailsScreen() {
       try {
         setLoading(true);
 
-        const data = await api.getOrders(token);
-
-        const found = data.find((o: any) => String(o.id) === String(id));
-        setOrder(found || null);
+        const data = await api.getOrderById(token, id);
+        setOrder(data);
       } catch (error) {
         console.log(error);
       } finally {

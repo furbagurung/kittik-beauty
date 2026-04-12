@@ -162,11 +162,17 @@ export default function CheckoutScreen() {
     });
 
     if (!user) {
-      router.push("/login");
+      router.push({
+        pathname: "/login",
+        params: { redirectTo: "/checkout" },
+      });
       return;
     }
     if (!token) {
-      router.push("/login");
+      router.push({
+        pathname: "/login",
+        params: { redirectTo: "/checkout" },
+      });
       return;
     }
     if (!items.length || !isFormValid || isSubmitting) return;

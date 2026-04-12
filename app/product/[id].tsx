@@ -1,3 +1,4 @@
+import Skeleton from "@/components/ui/Skeleton";
 import { api } from "@/services/api";
 import { useCartStore } from "@/store/cartStore";
 import { useWishlistStore } from "@/store/wishlistStore";
@@ -123,12 +124,26 @@ export default function ProductDetailsScreen() {
       rating: product.rating,
     });
   };
-
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.notFoundWrap}>
-          <Text style={styles.notFoundText}>Loading product...</Text>
+        <Skeleton height={420} />
+
+        <View style={styles.content}>
+          <Skeleton width={90} height={14} style={{ marginBottom: 12 }} />
+          <Skeleton width="70%" height={28} style={{ marginBottom: 12 }} />
+          <Skeleton width={120} height={24} style={{ marginBottom: 20 }} />
+
+          <View style={styles.sectionCard}>
+            <Skeleton height={14} style={{ marginBottom: 10 }} />
+            <Skeleton height={14} style={{ marginBottom: 10 }} />
+            <Skeleton height={14} width="70%" />
+          </View>
+
+          <View style={styles.sectionCard}>
+            <Skeleton height={14} style={{ marginBottom: 10 }} />
+            <Skeleton height={14} />
+          </View>
         </View>
       </SafeAreaView>
     );

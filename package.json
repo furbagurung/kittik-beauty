@@ -39,6 +39,7 @@
     "expo-web-browser": "~15.0.10",
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3",
+    "moti": "^0.30.0",
     "prisma": "^7.7.0",
     "react": "19.1.0",
     "react-dom": "19.1.0",

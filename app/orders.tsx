@@ -1,11 +1,9 @@
 import { api } from "@/services/api";
 import { useAuthStore } from "@/store/authStore";
-import { useEffect, useState } from "react";
-
-import { useOrderStore } from "@/store/orderStore";
 import { getPaymentLabel } from "@/utils/payment";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -23,7 +21,6 @@ export default function OrdersScreen() {
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const hydrated = useOrderStore((state) => state.hydrated);
 
   const formatPrice = (value: number) =>
     new Intl.NumberFormat("en-NP", {
@@ -100,40 +97,14 @@ export default function OrdersScreen() {
       }
     }
 
-    if (user) {
-      loadOrders();
+    if (!user) {
+      setLoading(false);
+      return;
     }
+
+    loadOrders();
   }, [user, token]);
 
-  if (loading) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <Pressable
-            style={styles.backButton}
-            onPress={() => {
-              if (router.canGoBack()) {
-                router.back();
-              } else {
-                router.replace("/(tabs)");
-              }
-            }}
-          >
-            <Ionicons name="arrow-back" size={20} color="#111827" />
-          </Pressable>
-
-          <Text style={styles.title}>My Orders</Text>
-
-          <View style={styles.headerSpacer} />
-        </View>
-
-        <View style={styles.loaderWrap}>
-          <ActivityIndicator size="large" color="#d96c8a" />
-          <Text style={styles.loaderText}>Loading your orders...</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
   if (!user) {
     return (
       <SafeAreaView style={styles.container}>
@@ -176,6 +147,35 @@ export default function OrdersScreen() {
       </SafeAreaView>
     );
   }
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <Pressable
+            style={styles.backButton}
+            onPress={() => {
+              if (router.canGoBack()) {
+                router.back();
+              } else {
+                router.replace("/(tabs)");
+              }
+            }}
+          >
+            <Ionicons name="arrow-back" size={20} color="#111827" />
+          </Pressable>
+
+          <Text style={styles.title}>My Orders</Text>
+
+          <View style={styles.headerSpacer} />
+        </View>
+
+        <View style={styles.loaderWrap}>
+          <ActivityIndicator size="large" color="#d96c8a" />
+          <Text style={styles.loaderText}>Loading your orders...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
@@ -196,10 +196,14 @@ export default function OrdersScreen() {
 
         <View style={styles.headerSpacer} />
       </View>
-
+      {error ? (
+        <View style={styles.errorBox}>
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
+      ) : null}
       <FlatList
         data={orders}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item) => String(item.id)}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[
           styles.listContent,
@@ -230,7 +234,7 @@ export default function OrdersScreen() {
             onPress={() =>
               router.push({
                 pathname: "/order/[id]",
-                params: { id: item.id },
+                params: { id: String(item.id) },
               })
             }
           >
@@ -474,5 +478,18 @@ const styles = StyleSheet.create({
   },
   statusTextDelivered: {
     color: "#1d4ed8",
+  },
+  errorBox: {
+    marginHorizontal: 16,
+    marginBottom: 8,
+    backgroundColor: "#fff1f2",
+    borderRadius: 14,
+    padding: 12,
+  },
+
+  errorText: {
+    color: "#be123c",
+    fontSize: 13,
+    fontWeight: "600",
   },
 });

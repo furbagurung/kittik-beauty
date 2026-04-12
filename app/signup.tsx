@@ -1,6 +1,6 @@
 import { useAuthStore } from "@/store/authStore";
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import {
   KeyboardAvoidingView,
@@ -15,7 +15,9 @@ import {
 
 export default function SignupScreen() {
   const signup = useAuthStore((state) => state.signup);
-
+  const { redirectTo } = useLocalSearchParams<{
+    redirectTo?: string;
+  }>();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -35,7 +37,11 @@ export default function SignupScreen() {
 
       await signup(fullName.trim(), email.trim(), password);
 
-      router.replace("/(tabs)/profile");
+      if (redirectTo) {
+        router.replace(redirectTo as any);
+      } else {
+        router.replace("/(tabs)");
+      }
     } catch (error) {
       setAuthError(
         error instanceof Error

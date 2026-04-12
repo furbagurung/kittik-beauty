@@ -1,4 +1,3 @@
-
 const API_BASE_URL = "http://192.168.1.66:5000/api";
 
 type RequestOptions = RequestInit & {
@@ -44,7 +43,6 @@ export const api = {
     const query = searchParams.toString();
     return request<any[]>(`/products${query ? `?${query}` : ""}`);
   },
-
   getProductById: (id: string | number) => {
     return request<any>(`/products/${id}`);
   },
@@ -69,12 +67,24 @@ export const api = {
       token,
     });
   },
-
+  getOrderById: (token: string, id: string | number) => {
+    return request<any>(`/orders/${id}`, {
+      method: "GET",
+      token,
+    });
+  },
   createOrder: (token: string, body: any) => {
     return request<any>("/orders", {
       method: "POST",
       token,
       body: JSON.stringify(body),
+    });
+  },
+  updateOrderStatus: (token: string, id: string | number, status: string) => {
+    return request<any>(`/orders/${id}/status`, {
+      method: "PATCH",
+      token,
+      body: JSON.stringify({ status }),
     });
   },
 };

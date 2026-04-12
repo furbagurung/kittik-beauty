@@ -40,7 +40,7 @@ export async function createOrder(req, res) {
         items: {
           create: items.map((item) => ({
             productId: Number(item.productId ?? item.id),
-            name: item.name,
+            name: String(item.name),
             price: Number(item.price),
             quantity: Number(item.quantity),
           })),
@@ -97,6 +97,40 @@ export async function getOrderById(req, res) {
   } catch (error) {
     return res.status(500).json({
       message: "Failed to fetch order",
+      error: error.message,
+    });
+  }
+}
+export async function updateOrderStatus(req, res) {
+  try {
+    const orderId = Number(req.params.id);
+    const { status } = req.body;
+
+    if (!status) {
+      return res.status(400).json({ message: "Status is required" });
+    }
+
+    const existingOrder = await prisma.order.findFirst({
+      where: {
+        id: orderId,
+        userId: req.user.id,
+      },
+    });
+
+    if (!existingOrder) {
+      return res.status(404).json({ message: "Order not found" });
+    }
+
+    const order = await prisma.order.update({
+      where: { id: orderId },
+      data: { status },
+      include: { items: true },
+    });
+
+    return res.json(order);
+  } catch (error) {
+    return res.status(500).json({
+      message: "Failed to update order status",
       error: error.message,
     });
   }

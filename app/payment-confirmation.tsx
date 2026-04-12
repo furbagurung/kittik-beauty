@@ -1,5 +1,5 @@
+import { api } from "@/services/api";
 import { useAuthStore } from "@/store/authStore";
-import { useOrderStore } from "@/store/orderStore";
 import { usePaymentSessionStore } from "@/store/paymentSessionStore";
 import { getPaymentLabel } from "@/utils/payment";
 import { Ionicons } from "@expo/vector-icons";
@@ -8,9 +8,10 @@ import { Pressable, SafeAreaView, StyleSheet, Text, View } from "react-native";
 
 export default function PaymentConfirmationScreen() {
   const user = useAuthStore((state) => state.user);
+  const token = useAuthStore((state) => state.token);
   const payload = usePaymentSessionStore((state) => state.payload);
   const clearPayload = usePaymentSessionStore((state) => state.clearPayload);
-  const updateOrderStatus = useOrderStore((state) => state.updateOrderStatus);
+
   const formatPrice = (value: number) =>
     new Intl.NumberFormat("en-NP", {
       style: "currency",
@@ -64,10 +65,19 @@ export default function PaymentConfirmationScreen() {
       </SafeAreaView>
     );
   }
-  const handleConfirmPayment = () => {
-    updateOrderStatus(payload.orderId, "paid");
-    clearPayload();
-    router.replace("/order-success");
+  const handleConfirmPayment = async () => {
+    if (!token) {
+      router.replace("/login");
+      return;
+    }
+
+    try {
+      await api.updateOrderStatus(token, payload.orderId, "paid");
+      clearPayload();
+      router.replace("/order-success");
+    } catch (error) {
+      console.log("Failed to confirm payment:", error);
+    }
   };
 
   const handleCancel = () => {

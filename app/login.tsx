@@ -1,6 +1,7 @@
 import { useAuthStore } from "@/store/authStore";
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
+
 import { useState } from "react";
 import {
   KeyboardAvoidingView,
@@ -15,7 +16,9 @@ import {
 
 export default function LoginScreen() {
   const login = useAuthStore((state) => state.login);
-
+  const { redirectTo } = useLocalSearchParams<{
+    redirectTo?: string;
+  }>();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -46,7 +49,11 @@ export default function LoginScreen() {
 
       await login(email.trim(), password);
 
-      router.replace("/(tabs)/profile");
+      if (redirectTo) {
+        router.replace(redirectTo as any);
+      } else {
+        router.replace("/(tabs)");
+      }
     } catch (error) {
       setAuthError(
         error instanceof Error
