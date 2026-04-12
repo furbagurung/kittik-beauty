@@ -1,53 +1,75 @@
+import Skeleton from "@/components/ui/Skeleton";
 import { Product } from "@/types/product";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
+import { MotiView } from "moti";
+import { useState } from "react";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
-
 type ProductCardProps = {
   product: Product;
 };
 
 export default function ProductCard({ product }: ProductCardProps) {
+  const [imageLoaded, setImageLoaded] = useState(false);
   return (
-    <Pressable
-      style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
-      android_ripple={{ color: "#f3e8ee" }}
-      onPress={() =>
-        router.push({ pathname: "/product/[id]", params: { id: product.id } })
-      }
+    <MotiView
+      from={{ opacity: 0, translateY: 8 }}
+      animate={{ opacity: 1, translateY: 0 }}
+      transition={{ type: "timing", duration: 280 }}
+      style={styles.cardWrap}
     >
-      <Image source={{ uri: product.image }} style={styles.image} />
+      <Pressable
+        style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
+        android_ripple={{ color: "#f3e8ee" }}
+        onPress={() =>
+          router.push({
+            pathname: "/product/[id]",
+            params: { id: String(product.id) },
+          })
+        }
+      >
+        <View style={styles.imageWrap}>
+          {!imageLoaded && <Skeleton height={170} radius={0} />}
 
-      <View style={styles.content}>
-        <Text style={styles.category}>{product.category}</Text>
-        <Text style={styles.name} numberOfLines={2}>
-          {product.name}
-        </Text>
+          <Image
+            source={{ uri: product.image }}
+            style={[styles.image, { opacity: imageLoaded ? 1 : 0 }]}
+            onLoad={() => setImageLoaded(true)}
+          />
+        </View>
 
-        <View style={styles.row}>
-          <Text style={styles.price}>NPR {product.price}</Text>
+        <View style={styles.content}>
+          <Text style={styles.category}>{product.category}</Text>
+          <Text style={styles.name} numberOfLines={2}>
+            {product.name}
+          </Text>
 
-          <View style={styles.ratingWrap}>
-            <Ionicons name="star" size={14} color="#f59e0b" />
-            <Text style={styles.rating}>{product.rating}</Text>
+          <View style={styles.row}>
+            <Text style={styles.price}>NPR {product.price}</Text>
+
+            <View style={styles.ratingWrap}>
+              <Ionicons name="star" size={14} color="#f59e0b" />
+              <Text style={styles.rating}>{product.rating}</Text>
+            </View>
           </View>
         </View>
-      </View>
-    </Pressable>
+      </Pressable>
+    </MotiView>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
+  cardWrap: {
     width: "48%",
+    marginBottom: 14,
+  },
+  card: {
     backgroundColor: "#fff",
     borderRadius: 18,
     overflow: "hidden",
-    marginBottom: 14,
   },
   cardPressed: {
-    opacity: 0.92,
-    transform: [{ scale: 0.985 }],
+    opacity: 0.95,
   },
   image: {
     width: "100%",
@@ -88,5 +110,11 @@ const styles = StyleSheet.create({
   rating: {
     fontSize: 13,
     color: "#6b7280",
+  },
+  imageWrap: {
+    width: "100%",
+    height: 170,
+    backgroundColor: "#f3f4f6",
+    overflow: "hidden",
   },
 });

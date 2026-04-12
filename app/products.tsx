@@ -1,13 +1,15 @@
 import ProductCard from "@/components/home/ProductCard";
+import Skeleton from "@/components/ui/Skeleton";
+
 import { api } from "@/services/api";
 import { Product } from "@/types/product";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
   FlatList,
   Pressable,
+  RefreshControl,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -39,7 +41,7 @@ export default function ProductsScreen() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-
+  const [refreshing, setRefreshing] = useState(false);
   useEffect(() => {
     if (
       typeof params.category === "string" &&
@@ -51,37 +53,41 @@ export default function ProductsScreen() {
     }
   }, [params.category]);
 
-  useEffect(() => {
-    async function loadProducts() {
-      try {
+  const loadProducts = async (isRefresh = false) => {
+    try {
+      if (isRefresh) {
+        setRefreshing(true);
+      } else {
         setLoading(true);
-        setError("");
-
-        const backendSort =
-          sortBy === "price-low"
-            ? "price_asc"
-            : sortBy === "price-high"
-              ? "price_desc"
-              : sortBy === "top-rated"
-                ? "rating_desc"
-                : undefined;
-
-        const data = await api.getProducts({
-          category: selectedCategory === "All" ? undefined : selectedCategory,
-          search: searchQuery.trim() || undefined,
-          sort: backendSort,
-        });
-
-        setProducts(data);
-      } catch (err) {
-        setError(
-          err instanceof Error ? err.message : "Failed to load products",
-        );
-      } finally {
-        setLoading(false);
       }
-    }
 
+      setError("");
+
+      const backendSort =
+        sortBy === "price-low"
+          ? "price_asc"
+          : sortBy === "price-high"
+            ? "price_desc"
+            : sortBy === "top-rated"
+              ? "rating_desc"
+              : undefined;
+
+      const data = await api.getProducts({
+        category: selectedCategory === "All" ? undefined : selectedCategory,
+        search: searchQuery.trim() || undefined,
+        sort: backendSort,
+      });
+
+      setProducts(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load products");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
     loadProducts();
   }, [selectedCategory, searchQuery, sortBy]);
 
@@ -106,6 +112,13 @@ export default function ProductsScreen() {
         keyExtractor={(item) => item.id.toString()}
         numColumns={2}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => loadProducts(true)}
+            tintColor="#d96c8a"
+          />
+        }
         columnWrapperStyle={
           filteredProducts.length > 1 ? styles.columnWrapper : undefined
         }
@@ -253,9 +266,28 @@ export default function ProductsScreen() {
             ) : null}
 
             {loading ? (
-              <View style={styles.loadingWrap}>
-                <ActivityIndicator size="small" color="#d96c8a" />
-                <Text style={styles.loadingText}>Loading products...</Text>
+              <View style={styles.skeletonGrid}>
+                {[1, 2, 3, 4].map((item) => (
+                  <View key={item} style={styles.skeletonCard}>
+                    <Skeleton height={170} radius={18} />
+                    <View style={styles.skeletonCardContent}>
+                      <Skeleton
+                        width={70}
+                        height={12}
+                        style={{ marginBottom: 10 }}
+                      />
+                      <Skeleton
+                        width="80%"
+                        height={16}
+                        style={{ marginBottom: 12 }}
+                      />
+                      <View style={styles.skeletonMetaRow}>
+                        <Skeleton width={80} height={14} />
+                        <Skeleton width={40} height={14} />
+                      </View>
+                    </View>
+                  </View>
+                ))}
               </View>
             ) : null}
           </View>
@@ -439,5 +471,29 @@ const styles = StyleSheet.create({
   errorText: {
     fontSize: 13,
     color: "#be123c",
+  },
+  skeletonGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    marginBottom: 10,
+  },
+
+  skeletonCard: {
+    width: "48%",
+    backgroundColor: "#ffffff",
+    borderRadius: 18,
+    overflow: "hidden",
+    marginBottom: 14,
+  },
+
+  skeletonCardContent: {
+    padding: 12,
+  },
+
+  skeletonMetaRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
 });
