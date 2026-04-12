@@ -1,20 +1,30 @@
+import { api } from "@/services/api";
+import { useAuthStore } from "@/store/authStore";
+import { useEffect, useState } from "react";
+
 import { useOrderStore } from "@/store/orderStore";
 import { getPaymentLabel } from "@/utils/payment";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import {
-    ActivityIndicator,
-    FlatList,
-    Pressable,
-    SafeAreaView,
-    StyleSheet,
-    Text,
-    View,
+  ActivityIndicator,
+  FlatList,
+  Pressable,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  View,
 } from "react-native";
 
 export default function OrdersScreen() {
+  const user = useAuthStore((state) => state.user);
+  const token = useAuthStore((state) => state.token);
+
+  const [orders, setOrders] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const hydrated = useOrderStore((state) => state.hydrated);
-  const orders = useOrderStore((state) => state.orders);
+
   const formatPrice = (value: number) =>
     new Intl.NumberFormat("en-NP", {
       style: "currency",
@@ -72,8 +82,30 @@ export default function OrdersScreen() {
         return styles.statusText;
     }
   };
+  useEffect(() => {
+    async function loadOrders() {
+      if (!token) return;
 
-  if (!hydrated) {
+      try {
+        setLoading(true);
+        setError("");
+
+        const data = await api.getOrders(token);
+        setOrders(data);
+      } catch (err) {
+        setError("Failed to load orders");
+        console.log(err);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    if (user) {
+      loadOrders();
+    }
+  }, [user, token]);
+
+  if (loading) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
@@ -102,7 +134,48 @@ export default function OrdersScreen() {
       </SafeAreaView>
     );
   }
+  if (!user) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <Pressable
+            style={styles.backButton}
+            onPress={() => {
+              if (router.canGoBack()) {
+                router.back();
+              } else {
+                router.replace("/(tabs)");
+              }
+            }}
+          >
+            <Ionicons name="arrow-back" size={20} color="#111827" />
+          </Pressable>
 
+          <Text style={styles.title}>My Orders</Text>
+
+          <View style={styles.headerSpacer} />
+        </View>
+
+        <View style={styles.emptyWrap}>
+          <View style={styles.emptyIconWrap}>
+            <Ionicons name="lock-closed-outline" size={28} color="#d96c8a" />
+          </View>
+
+          <Text style={styles.emptyTitle}>Login required</Text>
+          <Text style={styles.emptySubtext}>
+            Please log in to view your orders and track your purchases.
+          </Text>
+
+          <Pressable
+            style={styles.emptyButton}
+            onPress={() => router.push("/login")}
+          >
+            <Text style={styles.emptyButtonText}>Login to Continue</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
+  }
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>

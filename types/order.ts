@@ -1,9 +1,9 @@
 export type OrderItem = {
-  id: string;
+  id: number;
   name: string;
   price: number;
-  image: string;
   quantity: number;
+  image: string;
 };
 
 export type PaymentMethod = "cod" | "esewa" | "khalti";

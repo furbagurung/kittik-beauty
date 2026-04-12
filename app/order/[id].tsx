@@ -1,23 +1,26 @@
-import { useOrderStore } from "@/store/orderStore";
+import { api } from "@/services/api";
+import { useAuthStore } from "@/store/authStore";
 import { getPaymentLabel } from "@/utils/payment";
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, router, useLocalSearchParams } from "expo-router";
+import { useEffect, useState } from "react";
+
 import {
-    Image,
-    Pressable,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View,
+  Pressable,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from "react-native";
 
 export default function OrderDetailsScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
-  const hydrated = useOrderStore((state) => state.hydrated);
-  const orders = useOrderStore((state) => state.orders);
+  const user = useAuthStore((state) => state.user);
+  const token = useAuthStore((state) => state.token);
 
-  const order = orders.find((item) => item.id === id);
+  const [order, setOrder] = useState<any | null>(null);
+  const [loading, setLoading] = useState(true);
+  const { id } = useLocalSearchParams<{ id: string }>();
 
   const formatPrice = (value: number) =>
     new Intl.NumberFormat("en-NP", {
@@ -76,8 +79,68 @@ export default function OrderDetailsScreen() {
         return styles.statusText;
     }
   };
+  useEffect(() => {
+    async function loadOrder() {
+      if (!id || !token) return;
 
-  if (!hydrated) {
+      try {
+        setLoading(true);
+
+        const data = await api.getOrders(token);
+
+        const found = data.find((o: any) => String(o.id) === String(id));
+        setOrder(found || null);
+      } catch (error) {
+        console.log(error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+
+    loadOrder();
+  }, [id, token, user]);
+
+  if (!user) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <Stack.Screen options={{ headerShown: false }} />
+
+        <View style={styles.header}>
+          <Pressable style={styles.backButton} onPress={() => router.back()}>
+            <Ionicons name="arrow-back" size={20} color="#111827" />
+          </Pressable>
+
+          <Text style={styles.title}>Order Details</Text>
+
+          <View style={styles.headerSpacer} />
+        </View>
+
+        <View style={styles.emptyWrap}>
+          <View style={styles.emptyIconWrap}>
+            <Ionicons name="lock-closed-outline" size={28} color="#d96c8a" />
+          </View>
+
+          <Text style={styles.emptyTitle}>Login required</Text>
+          <Text style={styles.emptySubtext}>
+            Please log in to view your order details.
+          </Text>
+
+          <Pressable
+            style={styles.primaryButton}
+            onPress={() => router.replace("/login")}
+          >
+            <Text style={styles.primaryButtonText}>Login to Continue</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
+  }
+  if (loading) {
     return (
       <SafeAreaView style={styles.container}>
         <Stack.Screen options={{ headerShown: false }} />
@@ -203,9 +266,9 @@ export default function OrderDetailsScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Items</Text>
 
-          {order.items.map((item) => (
+          {order.items.map((item: any) => (
             <View key={item.id} style={styles.productCard}>
-              <Image source={{ uri: item.image }} style={styles.productImage} />
+              <View style={styles.productImage} />
 
               <View style={styles.productContent}>
                 <Text style={styles.productName} numberOfLines={2}>

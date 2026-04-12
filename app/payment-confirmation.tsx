@@ -1,3 +1,4 @@
+import { useAuthStore } from "@/store/authStore";
 import { useOrderStore } from "@/store/orderStore";
 import { usePaymentSessionStore } from "@/store/paymentSessionStore";
 import { getPaymentLabel } from "@/utils/payment";
@@ -6,6 +7,7 @@ import { router } from "expo-router";
 import { Pressable, SafeAreaView, StyleSheet, Text, View } from "react-native";
 
 export default function PaymentConfirmationScreen() {
+  const user = useAuthStore((state) => state.user);
   const payload = usePaymentSessionStore((state) => state.payload);
   const clearPayload = usePaymentSessionStore((state) => state.clearPayload);
   const updateOrderStatus = useOrderStore((state) => state.updateOrderStatus);
@@ -39,7 +41,29 @@ export default function PaymentConfirmationScreen() {
       </SafeAreaView>
     );
   }
+  if (!user) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.content}>
+          <View style={styles.iconWrap}>
+            <Ionicons name="lock-closed-outline" size={28} color="#d96c8a" />
+          </View>
 
+          <Text style={styles.title}>Login required</Text>
+          <Text style={styles.subtitle}>
+            Please log in to continue with payment confirmation.
+          </Text>
+
+          <Pressable
+            style={styles.primaryBtn}
+            onPress={() => router.replace("/login")}
+          >
+            <Text style={styles.primaryBtnText}>Login to Continue</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
+  }
   const handleConfirmPayment = () => {
     updateOrderStatus(payload.orderId, "paid");
     clearPayload();

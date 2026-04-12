@@ -1,10 +1,12 @@
+import { api } from "@/services/api";
 import { useAddressStore } from "@/store/addressStore";
+import { useAuthStore } from "@/store/authStore";
 import { useCartStore } from "@/store/cartStore";
 import { useCheckoutStore } from "@/store/checkoutStore";
-import { useOrderStore } from "@/store/orderStore";
 import { usePaymentSessionStore } from "@/store/paymentSessionStore";
-import type { Order, PaymentMethod } from "@/types/order";
-import { buildPaymentPayload, isOnlinePayment } from "@/utils/payment";
+import type { PaymentMethod } from "@/types/order";
+import { isOnlinePayment } from "@/utils/payment";
+
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useEffect, useRef, useState } from "react";
@@ -28,9 +30,11 @@ type TouchedFields = {
 };
 
 export default function CheckoutScreen() {
+  const token = useAuthStore((state) => state.token);
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
+  const user = useAuthStore((state) => state.user);
   const addressesHydrated = useAddressStore((state) => state.hydrated);
   const savedAddresses = useAddressStore((state) => state.addresses);
   const addAddress = useAddressStore((state) => state.addAddress);
@@ -58,7 +62,7 @@ export default function CheckoutScreen() {
   const hydrated = useCartStore((state) => state.hydrated);
   const items = useCartStore((state) => state.items);
   const clearCart = useCartStore((state) => state.clearCart);
-  const addOrder = useOrderStore((state) => state.addOrder);
+
   const formatPrice = (value: number) =>
     new Intl.NumberFormat("en-NP", {
       style: "currency",
@@ -157,6 +161,14 @@ export default function CheckoutScreen() {
       address: true,
     });
 
+    if (!user) {
+      router.push("/login");
+      return;
+    }
+    if (!token) {
+      router.push("/login");
+      return;
+    }
     if (!items.length || !isFormValid || isSubmitting) return;
 
     try {
@@ -164,30 +176,32 @@ export default function CheckoutScreen() {
 
       await new Promise((resolve) => setTimeout(resolve, 900));
 
-      const order: Order = {
-        id: `ORD-${Date.now()}`,
-        items: items.map((item) => ({
-          id: item.id,
-          name: item.name,
-          price: item.price,
-          image: item.image,
-          quantity: item.quantity,
-        })),
-        fullName: fullName.trim(),
-        phone: phone.trim(),
-        address: address.trim(),
-        paymentMethod,
-        subtotal,
-        deliveryFee,
-        total,
-        totalItems,
-        status: isOnlinePayment(paymentMethod) ? "pending_payment" : "placed", //Update checkout to create correct status
-        createdAt: new Date().toISOString(),
-      };
-      const paymentPayload = buildPaymentPayload(order);
-
       if (isOnlinePayment(paymentMethod)) {
-        addOrder(order);
+        const createdOrder = await api.createOrder(token!, {
+          items: items.map((item) => ({
+            productId: Number(item.id),
+            name: item.name,
+            price: item.price,
+            quantity: item.quantity,
+          })),
+          fullName: fullName.trim(),
+          phone: phone.trim(),
+          address: address.trim(),
+          paymentMethod,
+          subtotal,
+          deliveryFee,
+          total,
+          totalItems,
+        });
+
+        const paymentPayload = {
+          orderId: String(createdOrder.id),
+          amount: total,
+          customerName: fullName.trim(),
+          phone: phone.trim(),
+          method: paymentMethod,
+        };
+
         setPaymentPayload(paymentPayload);
 
         saveCheckoutDetails({
@@ -200,8 +214,22 @@ export default function CheckoutScreen() {
         router.push("/payment-confirmation");
         return;
       }
-
-      addOrder(order);
+      await api.createOrder(token!, {
+        items: items.map((item) => ({
+          productId: Number(item.id),
+          name: item.name,
+          price: item.price,
+          quantity: item.quantity,
+        })),
+        fullName: fullName.trim(),
+        phone: phone.trim(),
+        address: address.trim(),
+        paymentMethod,
+        subtotal,
+        deliveryFee,
+        total,
+        totalItems,
+      });
 
       saveCheckoutDetails({
         fullName: fullName.trim(),
@@ -265,6 +293,26 @@ export default function CheckoutScreen() {
             </View>
           ) : (
             <>
+              {!user && (
+                <View style={styles.guestNotice}>
+                  <Text style={styles.guestNoticeTitle}>
+                    Guest checkout preview
+                  </Text>
+                  <Text style={styles.guestNoticeText}>
+                    You can review your order, but you’ll need to log in before
+                    placing it.
+                  </Text>
+
+                  <Pressable
+                    style={styles.guestNoticeBtn}
+                    onPress={() => router.push("/login")}
+                  >
+                    <Text style={styles.guestNoticeBtnText}>
+                      Login to Continue
+                    </Text>
+                  </Pressable>
+                </View>
+              )}
               {/* saved addresses section to checkout  */}
               <View style={styles.section}>
                 <View style={styles.sectionHeaderRow}>
@@ -606,7 +654,7 @@ export default function CheckoutScreen() {
                     isCheckoutDisabled && styles.placeOrderTextDisabled,
                   ]}
                 >
-                  Place Order
+                  {user ? "Place Order" : "Login to Place Order"}
                 </Text>
               )}
             </Pressable>
@@ -964,5 +1012,39 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "700",
     color: "#d96c8a",
+  },
+  guestNotice: {
+    backgroundColor: "#fff1f5",
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 14,
+  },
+
+  guestNoticeTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#9f1239",
+    marginBottom: 6,
+  },
+
+  guestNoticeText: {
+    fontSize: 13,
+    lineHeight: 20,
+    color: "#6b7280",
+    marginBottom: 12,
+  },
+
+  guestNoticeBtn: {
+    alignSelf: "flex-start",
+    backgroundColor: "#d96c8a",
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+
+  guestNoticeBtnText: {
+    color: "#ffffff",
+    fontSize: 13,
+    fontWeight: "700",
   },
 });

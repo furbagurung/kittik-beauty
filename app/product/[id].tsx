@@ -1,9 +1,10 @@
-import { PRODUCTS } from "@/constants/mockData";
+import { api } from "@/services/api";
 import { useCartStore } from "@/store/cartStore";
 import { useWishlistStore } from "@/store/wishlistStore";
+import { Product } from "@/types/product";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Image,
   Pressable,
@@ -24,27 +25,36 @@ export default function ProductDetailsScreen() {
   const wishlistItems = useWishlistStore((state) => state.items);
 
   const [qty, setQty] = useState(1);
+  const [product, setProduct] = useState<Product | null>(null);
+  const [loading, setLoading] = useState(true);
   const [showAddedMessage, setShowAddedMessage] = useState(false);
   const [isAdded, setIsAdded] = useState(false);
 
   const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
 
-  const product = useMemo(
-    () => PRODUCTS.find((item) => item.id === String(id)),
-    [id],
-  );
+  useEffect(() => {
+    async function loadProduct() {
+      if (!id) return;
 
+      try {
+        setLoading(true);
+
+        const data = await api.getProductById(id);
+        setProduct(data);
+      } catch (error) {
+        console.log("Error loading product:", error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadProduct();
+  }, [id]);
   const liked = product
-    ? wishlistItems.some((item) => item.id === product.id)
+    ? wishlistItems.some((item) => String(item.id) === String(product.id))
     : false;
 
-  const relatedProducts = useMemo(() => {
-    if (!product) return [];
-
-    return PRODUCTS.filter(
-      (item) => item.id !== product.id && item.category === product.category,
-    ).slice(0, 4);
-  }, [product]);
+  const relatedProducts: Product[] = [];
 
   const formatPrice = (value: number) =>
     new Intl.NumberFormat("en-NP", {
@@ -76,7 +86,7 @@ export default function ProductDetailsScreen() {
     if (!product) return;
 
     addToCart({
-      id: product.id,
+      id: String(product.id),
       name: product.name,
       price: product.price,
       image: product.image,
@@ -91,7 +101,7 @@ export default function ProductDetailsScreen() {
     if (!product) return;
 
     addToCart({
-      id: product.id,
+      id: String(product.id),
       name: product.name,
       price: product.price,
       image: product.image,
@@ -105,7 +115,7 @@ export default function ProductDetailsScreen() {
     if (!product) return;
 
     toggleWishlist({
-      id: product.id,
+      id: String(product.id),
       name: product.name,
       price: product.price,
       image: product.image,
@@ -113,6 +123,16 @@ export default function ProductDetailsScreen() {
       rating: product.rating,
     });
   };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.notFoundWrap}>
+          <Text style={styles.notFoundText}>Loading product...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   if (!product) {
     return (

@@ -1,17 +1,19 @@
 import ProductCard from "@/components/home/ProductCard";
-import { PRODUCTS } from "@/constants/mockData";
+import { api } from "@/services/api";
+import { Product } from "@/types/product";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import {
-    FlatList,
-    Pressable,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
+  ActivityIndicator,
+  FlatList,
+  Pressable,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from "react-native";
 
 const categories = [
@@ -31,9 +33,13 @@ export default function ProductsScreen() {
       : "All";
 
   const [selectedCategory, setSelectedCategory] = useState(initialCategory);
-
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState("newest");
+
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
   useEffect(() => {
     if (
       typeof params.category === "string" &&
@@ -44,35 +50,44 @@ export default function ProductsScreen() {
       setSelectedCategory("All");
     }
   }, [params.category]);
-  const filteredProducts = useMemo(() => {
-    const filtered = PRODUCTS.filter((product) => {
-      const matchesCategory =
-        selectedCategory === "All" || product.category === selectedCategory;
 
-      const matchesSearch = product.name
-        .toLowerCase()
-        .includes(searchQuery.toLowerCase());
+  useEffect(() => {
+    async function loadProducts() {
+      try {
+        setLoading(true);
+        setError("");
 
-      return matchesCategory && matchesSearch;
-    });
+        const backendSort =
+          sortBy === "price-low"
+            ? "price_asc"
+            : sortBy === "price-high"
+              ? "price_desc"
+              : sortBy === "top-rated"
+                ? "rating_desc"
+                : undefined;
 
-    const sorted = [...filtered];
+        const data = await api.getProducts({
+          category: selectedCategory === "All" ? undefined : selectedCategory,
+          search: searchQuery.trim() || undefined,
+          sort: backendSort,
+        });
 
-    switch (sortBy) {
-      case "price-low":
-        return sorted.sort((a, b) => a.price - b.price);
-
-      case "price-high":
-        return sorted.sort((a, b) => b.price - a.price);
-
-      case "top-rated":
-        return sorted.sort((a, b) => b.rating - a.rating);
-
-      case "newest":
-      default:
-        return sorted;
+        setProducts(data);
+      } catch (err) {
+        setError(
+          err instanceof Error ? err.message : "Failed to load products",
+        );
+      } finally {
+        setLoading(false);
+      }
     }
+
+    loadProducts();
   }, [selectedCategory, searchQuery, sortBy]);
+
+  const filteredProducts = useMemo(() => {
+    return products;
+  }, [products]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -88,10 +103,12 @@ export default function ProductsScreen() {
 
       <FlatList
         data={filteredProducts}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item) => item.id.toString()}
         numColumns={2}
         showsVerticalScrollIndicator={false}
-        columnWrapperStyle={styles.columnWrapper}
+        columnWrapperStyle={
+          filteredProducts.length > 1 ? styles.columnWrapper : undefined
+        }
         contentContainerStyle={styles.listContent}
         ListHeaderComponent={
           <View>
@@ -110,7 +127,7 @@ export default function ProductsScreen() {
                 </Pressable>
               )}
             </View>
-            {/* category scroll view  */}
+
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -140,7 +157,7 @@ export default function ProductsScreen() {
                 );
               })}
             </ScrollView>
-            {/* sorting UI  */}
+
             <View style={styles.sortSection}>
               <Text style={styles.sortLabel}>Sort by</Text>
 
@@ -219,23 +236,39 @@ export default function ProductsScreen() {
               </ScrollView>
             </View>
 
-            {/* results header  */}
             <View style={styles.resultsHeader}>
               <Text style={styles.resultsTitle}>Browse Collection</Text>
               <Text style={styles.resultsCount}>
-                {filteredProducts.length}{" "}
-                {filteredProducts.length === 1 ? "product" : "products"}
+                {loading
+                  ? "Loading..."
+                  : `${filteredProducts.length} ${filteredProducts.length === 1 ? "product" : "products"}`}
               </Text>
             </View>
+
+            {error ? (
+              <View style={styles.errorWrap}>
+                <Text style={styles.errorTitle}>Couldn’t load products</Text>
+                <Text style={styles.errorText}>{error}</Text>
+              </View>
+            ) : null}
+
+            {loading ? (
+              <View style={styles.loadingWrap}>
+                <ActivityIndicator size="small" color="#d96c8a" />
+                <Text style={styles.loadingText}>Loading products...</Text>
+              </View>
+            ) : null}
           </View>
         }
         ListEmptyComponent={
-          <View style={styles.emptyWrap}>
-            <Text style={styles.emptyTitle}>No products found</Text>
-            <Text style={styles.emptyText}>
-              Try a different search or category.
-            </Text>
-          </View>
+          !loading ? (
+            <View style={styles.emptyWrap}>
+              <Text style={styles.emptyTitle}>No products found</Text>
+              <Text style={styles.emptyText}>
+                Try a different search or category.
+              </Text>
+            </View>
+          ) : null
         }
         renderItem={({ item }) => <ProductCard product={item} />}
       />
@@ -378,5 +411,33 @@ const styles = StyleSheet.create({
   },
   sortPillTextActive: {
     color: "#ffffff",
+  },
+  loadingWrap: {
+    backgroundColor: "#ffffff",
+    borderRadius: 18,
+    padding: 20,
+    alignItems: "center",
+    marginBottom: 14,
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 13,
+    color: "#6b7280",
+  },
+  errorWrap: {
+    backgroundColor: "#fff1f2",
+    borderRadius: 18,
+    padding: 16,
+    marginBottom: 14,
+  },
+  errorTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#9f1239",
+    marginBottom: 4,
+  },
+  errorText: {
+    fontSize: 13,
+    color: "#be123c",
   },
 });

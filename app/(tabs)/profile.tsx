@@ -1,3 +1,4 @@
+import { useAuthStore } from "@/store/authStore";
 import { useOrderStore } from "@/store/orderStore";
 import { useWishlistStore } from "@/store/wishlistStore";
 import { Ionicons } from "@expo/vector-icons";
@@ -5,6 +6,8 @@ import { router } from "expo-router";
 import { Pressable, SafeAreaView, StyleSheet, Text, View } from "react-native";
 
 export default function ProfileScreen() {
+  const user = useAuthStore((state) => state.user);
+  const logout = useAuthStore((state) => state.logout);
   const orderCount = useOrderStore((state) => state.orders.length);
   const wishlistCount = useWishlistStore((state) => state.items.length);
   return (
@@ -15,18 +18,42 @@ export default function ProfileScreen() {
             <Ionicons name="person-outline" size={28} color="#d96c8a" />
           </View>
 
-          <Text style={styles.title}>Profile</Text>
+          <Text style={styles.title}>{user ? user.name : "Profile"}</Text>
           <Text style={styles.subtitle}>
-            Manage your orders, saved products, and future account settings.
+            {user
+              ? "Manage your orders, saved products, and account details."
+              : "Browse as a guest or sign in to access orders and account features."}
           </Text>
         </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Account</Text>
+          {!user && (
+            <View style={styles.authActions}>
+              <Pressable
+                style={styles.loginBtn}
+                onPress={() => router.push("/login")}
+              >
+                <Text style={styles.loginBtnText}>Login</Text>
+              </Pressable>
 
+              <Pressable
+                style={styles.signupBtn}
+                onPress={() => router.push("/signup")}
+              >
+                <Text style={styles.signupBtnText}>Sign Up</Text>
+              </Pressable>
+            </View>
+          )}
           <Pressable
             style={styles.menuItem}
-            onPress={() => router.push("/orders")}
+            onPress={() => {
+              if (!user) {
+                router.push("/login");
+                return;
+              }
+              router.push("/orders");
+            }}
           >
             <View style={styles.menuLeft}>
               <View style={styles.iconWrap}>
@@ -66,7 +93,13 @@ export default function ProfileScreen() {
             <Ionicons name="chevron-forward" size={18} color="#9ca3af" />
           </Pressable>
         </View>
-
+        {user && (
+          <View style={styles.section}>
+            <Pressable style={styles.logoutBtn} onPress={() => logout()}>
+              <Text style={styles.logoutBtnText}>Logout</Text>
+            </Pressable>
+          </View>
+        )}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Coming Soon</Text>
 
@@ -176,5 +209,56 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 20,
     color: "#6b7280",
+  },
+  authActions: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 14,
+  },
+
+  loginBtn: {
+    flex: 1,
+    backgroundColor: "#ffffff",
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 14,
+    borderWidth: 1,
+    borderColor: "#f0d7df",
+  },
+
+  loginBtnText: {
+    color: "#111827",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+
+  signupBtn: {
+    flex: 1,
+    backgroundColor: "#d96c8a",
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 14,
+  },
+
+  signupBtnText: {
+    color: "#ffffff",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+
+  logoutBtn: {
+    backgroundColor: "#ffffff",
+    borderRadius: 18,
+    paddingVertical: 15,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  logoutBtnText: {
+    color: "#dc2626",
+    fontSize: 15,
+    fontWeight: "700",
   },
 });

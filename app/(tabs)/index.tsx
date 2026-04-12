@@ -1,10 +1,11 @@
 import ProductCard from "@/components/home/ProductCard";
+import { api } from "@/services/api";
+import { Product } from "@/types/product";
 
-import { PRODUCTS } from "@/constants/mockData";
 import { useCartStore } from "@/store/cartStore";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   FlatList,
   Image,
@@ -31,17 +32,31 @@ export default function HomeScreen() {
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
   const scrollRef = useRef<ScrollView>(null);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
   const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
-  const filteredProducts = PRODUCTS.filter((product) => {
-    const matchesCategory =
-      selectedCategory === "All" || product.category === selectedCategory;
+  useEffect(() => {
+    async function loadProducts() {
+      try {
+        setLoading(true);
 
-    const matchesSearch = product.name
-      .toLowerCase()
-      .includes(searchQuery.toLowerCase());
+        const data = await api.getProducts({
+          category: selectedCategory === "All" ? undefined : selectedCategory,
+          search: searchQuery.trim() || undefined,
+        });
 
-    return matchesCategory && matchesSearch;
-  });
+        setProducts(data);
+      } catch (error) {
+        console.log("Error loading products:", error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadProducts();
+  }, [selectedCategory, searchQuery]);
+
+  const filteredProducts = products.slice(0, 4);
   const scrollToProducts = () => {
     scrollRef.current?.scrollTo({
       y: 500,
@@ -161,10 +176,14 @@ export default function HomeScreen() {
             </Pressable>
           </View>
 
-          {filteredProducts.length > 0 ? (
+          {loading ? (
+            <View style={styles.productsEmpty}>
+              <Text style={styles.productsEmptyTitle}>Loading products...</Text>
+            </View>
+          ) : filteredProducts.length > 0 ? (
             <View style={styles.productGrid}>
               {filteredProducts.map((product) => (
-                <ProductCard key={product.id} product={product} />
+                <ProductCard key={product.id.toString()} product={product} />
               ))}
             </View>
           ) : (

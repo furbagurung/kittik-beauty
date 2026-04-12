@@ -57,7 +57,7 @@ export default function WishlistScreen() {
         <FlatList
           data={items}
           extraData={items}
-          keyExtractor={(item) => item.id}
+          keyExtractor={(item) => String(item.id)}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={[
             styles.listContent,
