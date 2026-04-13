@@ -139,7 +139,7 @@ export default function OrdersScreen() {
 
           <Pressable
             style={styles.emptyButton}
-            onPress={() => router.push("/login")}
+            onPress={() => router.push("/auth/login")}
           >
             <Text style={styles.emptyButtonText}>Login to Continue</Text>
           </Pressable>
@@ -279,7 +279,9 @@ export default function OrdersScreen() {
 
             <View style={styles.row}>
               <Text style={styles.label}>Delivery</Text>
-              <Text style={styles.value}>{formatPrice(item.deliveryFee)}</Text>
+              <Text style={styles.value}>
+                {item.deliveryFee > 0 ? formatPrice(item.deliveryFee) : "Free"}
+              </Text>
             </View>
 
             <View style={[styles.row, styles.totalRow]}>

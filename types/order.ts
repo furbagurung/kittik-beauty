@@ -1,3 +1,5 @@
+import type { PaymentMethod } from "@/types/payment";
+
 export type OrderItem = {
   id: number;
   name: string;
@@ -6,7 +8,7 @@ export type OrderItem = {
   image: string;
 };
 
-export type PaymentMethod = "cod" | "esewa" | "khalti";
+export type { PaymentMethod } from "@/types/payment";
 
 export type OrderStatus =
   | "placed"

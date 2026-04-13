@@ -207,7 +207,7 @@ export default function ProductDetailsScreen() {
       quantity: qty,
     });
 
-    router.push("/checkout");
+    router.push("/shop/checkout");
   };
 
   const handleToggleWishlist = async () => {
@@ -232,7 +232,7 @@ export default function ProductDetailsScreen() {
 
   const handleCartPress = async () => {
     await Haptics.selectionAsync();
-    router.push("/cart");
+    router.push("/shop/cart");
   };
   const handleThumbnailPress = async (index: number) => {
     await Haptics.selectionAsync();

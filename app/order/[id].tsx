@@ -130,7 +130,7 @@ export default function OrderDetailsScreen() {
 
           <Pressable
             style={styles.primaryButton}
-            onPress={() => router.replace("/login")}
+            onPress={() => router.replace("/auth/login")}
           >
             <Text style={styles.primaryButtonText}>Login to Continue</Text>
           </Pressable>
@@ -185,7 +185,7 @@ export default function OrderDetailsScreen() {
 
           <Pressable
             style={styles.primaryButton}
-            onPress={() => router.replace("/orders")}
+            onPress={() => router.replace("/shop/orders")}
           >
             <Text style={styles.primaryButtonText}>Back to Orders</Text>
           </Pressable>
@@ -301,9 +301,9 @@ export default function OrderDetailsScreen() {
           </View>
 
           <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Delivery Fee</Text>
+            <Text style={styles.summaryLabel}>Delivery</Text>
             <Text style={styles.summaryValue}>
-              {formatPrice(order.deliveryFee)}
+              {order.deliveryFee > 0 ? formatPrice(order.deliveryFee) : "Free"}
             </Text>
           </View>
 

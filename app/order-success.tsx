@@ -106,7 +106,7 @@ export default function OrderSuccessScreen() {
 
           <Pressable
             style={orderId ? styles.secondaryBtn : styles.primaryBtn}
-            onPress={() => router.replace("/orders")}
+            onPress={() => router.replace("/shop/orders")}
           >
             <Text
               style={orderId ? styles.secondaryBtnText : styles.primaryBtnText}

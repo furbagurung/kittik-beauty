@@ -1,4 +1,3 @@
-import { api } from "@/services/api";
 import { verifyPayment } from "@/services/payments/paymentClient";
 import { useAuthStore } from "@/store/authStore";
 import { useCartStore } from "@/store/cartStore";
@@ -22,7 +21,10 @@ type CallbackPayload = {
   status: string;
   orderId: string;
   transactionUuid: string;
+  data: string;
 };
+
+const ESEWA_WEB_CALLBACK_HOST = "developer.esewa.com.np";
 
 function getStringParam(value: unknown): string {
   if (typeof value === "string") {
@@ -37,27 +39,58 @@ function getStringParam(value: unknown): string {
 }
 
 function isPaymentCallbackUrl(url: string): boolean {
-  return url.includes("payment-confirmation") && url.includes("status=");
+  try {
+    const parsed = new URL(url);
+
+    return (
+      parsed.pathname.includes("payment-confirmation") ||
+      (parsed.host === ESEWA_WEB_CALLBACK_HOST &&
+        (parsed.pathname === "/success" || parsed.pathname === "/failure"))
+    );
+  } catch {
+    return (
+      url.includes("payment-confirmation") ||
+      url.includes(`${ESEWA_WEB_CALLBACK_HOST}/success`) ||
+      url.includes(`${ESEWA_WEB_CALLBACK_HOST}/failure`)
+    );
+  }
 }
 
 function parseCallbackUrl(url: string): CallbackPayload {
   try {
     const parsed = new URL(url);
+    const inferredStatus =
+      parsed.pathname === "/success"
+        ? "success"
+        : parsed.pathname === "/failure"
+          ? "failure"
+          : "";
 
     return {
-      status: parsed.searchParams.get("status")?.toLowerCase() || "",
+      status:
+        parsed.searchParams.get("status")?.toLowerCase() || inferredStatus,
       orderId: parsed.searchParams.get("orderId") || "",
       transactionUuid: parsed.searchParams.get("transaction_uuid") || "",
+      data: parsed.searchParams.get("data") || "",
     };
   } catch {
     return {
       status: "",
       orderId: "",
       transactionUuid: "",
+      data: "",
     };
   }
 }
 
+function isEsewaGatewayUrl(url: string): boolean {
+  return (
+    url.includes("rc-epay.esewa.com.np") ||
+    url.includes("epay.esewa.com.np") ||
+    url.includes("developer.esewa.com.np/success") ||
+    url.includes("developer.esewa.com.np/failure")
+  );
+}
 export default function PaymentConfirmationScreen() {
   const user = useAuthStore((state) => state.user);
   const token = useAuthStore((state) => state.token);
@@ -65,16 +98,18 @@ export default function PaymentConfirmationScreen() {
   const clearPayload = usePaymentSessionStore((state) => state.clearPayload);
   const clearCart = useCartStore((state) => state.clearCart);
   const handledCallbackRef = useRef(false);
-  const { status, orderId, transaction_uuid } = useLocalSearchParams<{
+  const { status, orderId, transaction_uuid, data } = useLocalSearchParams<{
     status?: string | string[];
     orderId?: string | string[];
     transaction_uuid?: string | string[];
+    data?: string | string[];
   }>();
   const [callbackData, setCallbackData] = useState<CallbackPayload | null>(
     null,
   );
   const [isProcessing, setIsProcessing] = useState(false);
   const [isWebViewLoading, setIsWebViewLoading] = useState(true);
+  const [hasGatewayLoaded, setHasGatewayLoaded] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [statusMessage, setStatusMessage] = useState("");
 
@@ -96,8 +131,9 @@ export default function PaymentConfirmationScreen() {
       status: callbackStatus,
       orderId: getStringParam(orderId),
       transactionUuid: getStringParam(transaction_uuid),
+      data: getStringParam(data),
     };
-  }, [orderId, status, transaction_uuid]);
+  }, [data, orderId, status, transaction_uuid]);
 
   useEffect(() => {
     if (routeCallback) {
@@ -111,7 +147,11 @@ export default function PaymentConfirmationScreen() {
   }, [clearPayload]);
 
   const completeVerifiedPayment = useCallback(
-    async (resolvedOrderId: string, providerReference?: string) => {
+    async (
+      resolvedOrderId: string,
+      providerReference?: string,
+      callbackPayload?: CallbackPayload,
+    ) => {
       if (!payload || !token) {
         throw new Error("Missing payment session");
       }
@@ -119,15 +159,16 @@ export default function PaymentConfirmationScreen() {
       const verification = await verifyPayment({
         method: payload.method,
         orderId: resolvedOrderId,
+        token,
         paymentId: payload.paymentId,
         providerReference: providerReference || payload.providerReference,
+        data: callbackPayload?.data,
       });
 
       if (!verification.success || verification.status !== "paid") {
         throw new Error(verification.message || "Payment verification failed");
       }
 
-      await api.updateOrderStatus(token, resolvedOrderId, "paid");
       clearCart();
       clearPayload();
       router.replace({
@@ -152,9 +193,12 @@ export default function PaymentConfirmationScreen() {
       setErrorMessage("");
 
       try {
+        console.log("ESEWA CALLBACK DATA:", currentCallback);
         if (currentCallback.status !== "success") {
-          setStatusMessage("");
-          setErrorMessage("eSewa payment was not completed.");
+          setStatusMessage("Payment failed");
+          setErrorMessage(
+            "eSewa returned a failure response before verification. Please try again.",
+          );
           return;
         }
 
@@ -162,6 +206,7 @@ export default function PaymentConfirmationScreen() {
         await completeVerifiedPayment(
           currentCallback.orderId || currentPayload.orderId,
           currentCallback.transactionUuid || currentPayload.providerReference,
+          currentCallback,
         );
       } catch (error) {
         setStatusMessage("");
@@ -180,8 +225,12 @@ export default function PaymentConfirmationScreen() {
 
   const handleShouldStartLoadWithRequest = useCallback(
     (request: ShouldStartLoadRequest) => {
+      console.log("ESEWA WEBVIEW URL:", request.url);
+
       if (isPaymentCallbackUrl(request.url)) {
-        setCallbackData(parseCallbackUrl(request.url));
+        const parsed = parseCallbackUrl(request.url);
+        console.log("ESEWA CALLBACK PARSED:", parsed);
+        setCallbackData(parsed);
         return false;
       }
 
@@ -205,7 +254,7 @@ export default function PaymentConfirmationScreen() {
 
           <Pressable
             style={styles.primaryBtn}
-            onPress={() => router.replace("/checkout")}
+            onPress={() => router.replace("/shop/checkout")}
           >
             <Text style={styles.primaryBtnText}>Back to Checkout</Text>
           </Pressable>
@@ -229,7 +278,7 @@ export default function PaymentConfirmationScreen() {
 
           <Pressable
             style={styles.primaryBtn}
-            onPress={() => router.replace("/login")}
+            onPress={() => router.replace("/auth/login")}
           >
             <Text style={styles.primaryBtnText}>Login to Continue</Text>
           </Pressable>
@@ -237,7 +286,8 @@ export default function PaymentConfirmationScreen() {
       </SafeAreaView>
     );
   }
-
+  const shouldShowBlockingOverlay =
+    (!hasGatewayLoaded && isWebViewLoading) || isProcessing || !!errorMessage;
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
@@ -245,7 +295,9 @@ export default function PaymentConfirmationScreen() {
           <Ionicons name="arrow-back" size={20} color="#111827" />
         </Pressable>
 
-        <Text style={styles.headerTitle}>{getPaymentLabel(payload.method)}</Text>
+        <Text style={styles.headerTitle}>
+          {getPaymentLabel(payload.method)}
+        </Text>
 
         <View style={styles.headerSpacer} />
       </View>
@@ -267,14 +319,36 @@ export default function PaymentConfirmationScreen() {
           <WebView
             source={{ uri: payload.redirectUrl }}
             onShouldStartLoadWithRequest={handleShouldStartLoadWithRequest}
-            onLoadStart={() => {
-              setIsWebViewLoading(true);
-              setStatusMessage("Opening eSewa...");
+            onNavigationStateChange={(navState) => {
+              if (isEsewaGatewayUrl(navState.url)) {
+                setHasGatewayLoaded(true);
+                setIsWebViewLoading(false);
+
+                if (!callbackData && !isProcessing) {
+                  setStatusMessage("Complete payment in the window below.");
+                }
+              }
             }}
-            onLoadEnd={() => {
-              setIsWebViewLoading(false);
-              if (!callbackData && !isProcessing) {
-                setStatusMessage("Complete payment in the window below.");
+            onLoadStart={({ nativeEvent }) => {
+              if (!hasGatewayLoaded) {
+                setIsWebViewLoading(true);
+                setStatusMessage("Opening eSewa...");
+              }
+
+              if (isEsewaGatewayUrl(nativeEvent.url)) {
+                setHasGatewayLoaded(true);
+              }
+            }}
+            onLoadEnd={({ nativeEvent }) => {
+              if (isEsewaGatewayUrl(nativeEvent.url)) {
+                setHasGatewayLoaded(true);
+                setIsWebViewLoading(false);
+
+                if (!callbackData && !isProcessing) {
+                  setStatusMessage("Complete payment in the window below.");
+                }
+              } else if (!hasGatewayLoaded) {
+                setIsWebViewLoading(false);
               }
             }}
             onError={() => {
@@ -290,10 +364,13 @@ export default function PaymentConfirmationScreen() {
             style={styles.webView}
           />
 
-          {(isWebViewLoading || isProcessing || errorMessage) && (
+          {shouldShowBlockingOverlay && (
             <View style={styles.overlay}>
               {isWebViewLoading || isProcessing ? (
-                <ActivityIndicator color="#d96c8a" style={styles.overlaySpinner} />
+                <ActivityIndicator
+                  color="#d96c8a"
+                  style={styles.overlaySpinner}
+                />
               ) : null}
               <Text style={styles.overlayTitle}>
                 {statusMessage || "Preparing payment"}
@@ -311,6 +388,7 @@ export default function PaymentConfirmationScreen() {
                     setCallbackData(null);
                     setErrorMessage("");
                     setStatusMessage("Opening eSewa...");
+                    setHasGatewayLoaded(false);
                     setIsWebViewLoading(true);
                   }}
                 >

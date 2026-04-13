@@ -1,7 +1,9 @@
-const API_BASE_URL = "http://192.168.1.66:5000/api";
+import { request } from "@/services/http";
+import type { AuthUser } from "@/types/auth";
 
-type RequestOptions = RequestInit & {
-  token?: string | null;
+type AuthResponse = {
+  token: string;
+  user: AuthUser;
 };
 
 type EsewaInitiateBody = {
@@ -26,6 +28,7 @@ type EsewaVerifyBody = {
   orderId: string;
   paymentId?: string;
   providerReference?: string;
+  data?: string;
 };
 
 type EsewaVerifyResponse = {
@@ -33,30 +36,6 @@ type EsewaVerifyResponse = {
   status: string;
   message: string;
 };
-
-async function request<T>(
-  endpoint: string,
-  options: RequestOptions = {},
-): Promise<T> {
-  const { token, headers, ...rest } = options;
-
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-    ...rest,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(headers || {}),
-    },
-  });
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data?.message || "Something went wrong");
-  }
-
-  return data;
-}
 
 export const api = {
   getProducts: (params?: {
@@ -79,16 +58,23 @@ export const api = {
   },
 
   signup: (body: { name: string; email: string; password: string }) => {
-    return request<{ token: string; user: any }>("/auth/signup", {
+    return request<AuthResponse>("/auth/signup", {
       method: "POST",
       body: JSON.stringify(body),
     });
   },
 
   login: (body: { email: string; password: string }) => {
-    return request<{ token: string; user: any }>("/auth/login", {
+    return request<AuthResponse>("/auth/login", {
       method: "POST",
       body: JSON.stringify(body),
+    });
+  },
+
+  getCurrentUser: (token: string) => {
+    return request<{ user: AuthUser }>("/auth/me", {
+      method: "GET",
+      token,
     });
   },
 
@@ -122,16 +108,18 @@ export const api = {
     });
   },
 
-  initiateEsewaPayment: (body: EsewaInitiateBody) => {
+  initiateEsewaPayment: (body: EsewaInitiateBody, token?: string | null) => {
     return request<EsewaInitiateResponse>("/payments/esewa/initiate", {
       method: "POST",
+      token,
       body: JSON.stringify(body),
     });
   },
 
-  verifyEsewaPayment: (body: EsewaVerifyBody) => {
+  verifyEsewaPayment: (body: EsewaVerifyBody, token?: string | null) => {
     return request<EsewaVerifyResponse>("/payments/esewa/verify", {
       method: "POST",
+      token,
       body: JSON.stringify(body),
     });
   },

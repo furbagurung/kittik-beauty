@@ -5,7 +5,8 @@ import { useAuthStore } from "@/store/authStore";
 import { useCartStore } from "@/store/cartStore";
 import { useCheckoutStore } from "@/store/checkoutStore";
 import { usePaymentSessionStore } from "@/store/paymentSessionStore";
-import type { Order, PaymentMethod } from "@/types/order";
+import type { Order } from "@/types/order";
+import type { PaymentMethod } from "@/types/payment";
 
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
@@ -106,7 +107,7 @@ export default function CheckoutScreen() {
   );
 
   const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
-  const deliveryFee = items.length > 0 ? 150 : 0;
+  const deliveryFee = 0;
   const total = subtotal + deliveryFee;
 
   const nameError =
@@ -185,8 +186,8 @@ export default function CheckoutScreen() {
 
     if (!user || !token) {
       router.push({
-        pathname: "/login",
-        params: { redirectTo: "/checkout" },
+        pathname: "/auth/login",
+        params: { redirectTo: "/shop/checkout" },
       });
       return;
     }
@@ -215,6 +216,7 @@ export default function CheckoutScreen() {
           amount: total,
           customerName: fullName.trim(),
           phone: phone.trim(),
+          token,
           method: "esewa",
         });
 
@@ -236,7 +238,7 @@ export default function CheckoutScreen() {
         });
 
         router.push({
-          pathname: "/payment-confirmation",
+          pathname: "/shop/payment-confirmation",
           params: {
             orderId: String(createdOrder.id),
             method: "esewa",
@@ -335,7 +337,7 @@ export default function CheckoutScreen() {
 
                   <Pressable
                     style={styles.guestNoticeBtn}
-                    onPress={() => router.push("/login")}
+                    onPress={() => router.push("/auth/login")}
                   >
                     <Text style={styles.guestNoticeBtnText}>
                       Login to Continue
@@ -638,9 +640,9 @@ export default function CheckoutScreen() {
                   </View>
 
                   <View style={styles.summaryRow}>
-                    <Text style={styles.summaryLabel}>Delivery Fee</Text>
+                    <Text style={styles.summaryLabel}>Delivery</Text>
                     <Text style={styles.summaryValue}>
-                      {formatPrice(deliveryFee)}
+                      {deliveryFee > 0 ? formatPrice(deliveryFee) : "Free"}
                     </Text>
                   </View>
 

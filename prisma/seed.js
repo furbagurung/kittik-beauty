@@ -51,6 +51,25 @@ async function main() {
     ],
   });
 
+  const existingTestProduct = await prisma.product.findFirst({
+    where: {
+      name: "eSewa Test Product",
+    },
+  });
+
+  if (!existingTestProduct) {
+    await prisma.product.create({
+      data: {
+        name: "eSewa Test Product",
+        price: 0,
+        image:
+          "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?q=80&w=800&auto=format&fit=crop",
+        category: "Skincare",
+        rating: 5,
+      },
+    });
+  }
+
   console.log("✅ Products seeded!");
 }
 

@@ -11,7 +11,7 @@ export async function initiateEsewaPayment(
   input: InitiatePaymentInput,
 ): Promise<InitiatePaymentResult> {
   try {
-    const returnUrl = Linking.createURL("payment-confirmation");
+    const returnUrl = Linking.createURL("shop/payment-confirmation");
 
     const data = await api.initiateEsewaPayment({
       orderId: input.orderId,
@@ -19,7 +19,7 @@ export async function initiateEsewaPayment(
       customerName: input.customerName,
       phone: input.phone,
       returnUrl,
-    });
+    }, input.token);
 
     return {
       success: true,
@@ -49,7 +49,8 @@ export async function verifyEsewaPayment(
       orderId: input.orderId,
       paymentId: input.paymentId,
       providerReference: input.providerReference,
-    });
+      data: input.data,
+    }, input.token);
 
     const providerStatus = String(data?.status || "").toUpperCase();
 
