@@ -4,26 +4,35 @@ import { useCartStore } from "@/store/cartStore";
 import { useWishlistStore } from "@/store/wishlistStore";
 import { Product } from "@/types/product";
 import { Ionicons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams } from "expo-router";
-import { useEffect, useState } from "react";
+import { MotiView } from "moti";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Image,
+  Modal,
   Pressable,
   SafeAreaView,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from "react-native";
-
+import Carousel, {
+  type ICarouselInstance,
+} from "react-native-reanimated-carousel";
 export default function ProductDetailsScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
-
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const addToCart = useCartStore((state) => state.addToCart);
   const items = useCartStore((state) => state.items);
 
   const toggleWishlist = useWishlistStore((state) => state.toggleWishlist);
   const wishlistItems = useWishlistStore((state) => state.items);
+  const mainCarouselRef = useRef<ICarouselInstance>(null);
+  const fullscreenCarouselRef = useRef<ICarouselInstance>(null);
 
   const [qty, setQty] = useState(1);
   const [product, setProduct] = useState<Product | null>(null);
@@ -31,7 +40,56 @@ export default function ProductDetailsScreen() {
   const [showAddedMessage, setShowAddedMessage] = useState(false);
   const [isAdded, setIsAdded] = useState(false);
 
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [fullscreenIndex, setFullscreenIndex] = useState(0);
+  const [isGalleryOpen, setIsGalleryOpen] = useState(false);
+
+  const [loadedImages, setLoadedImages] = useState<Record<string, boolean>>({});
+  const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
+
   const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
+
+  const currentProductId = product ? String(product.id) : "";
+  const currentCategory = product?.category ?? "";
+  const isInStock =
+    typeof product?.stock === "number" ? product.stock > 0 : true;
+
+  const stockText = isInStock ? "In Stock" : "Out of Stock";
+
+  const ratingValue =
+    typeof product?.rating === "number" ? product.rating.toFixed(1) : "4.8";
+
+  const totalPrice = product ? product.price * qty : 0;
+
+  const descriptionText =
+    product?.description?.trim() ||
+    "A premium beauty essential crafted for everyday confidence, smooth application, and a polished self-care routine.";
+
+  const galleryImages = useMemo(() => {
+    if (!product) return [];
+
+    const rawImages = [product.image, ...(product.images ?? [])];
+    return Array.from(
+      new Set(rawImages.filter((item): item is string => Boolean(item))),
+    );
+  }, [product]);
+
+  const galleryData =
+    galleryImages.length > 0
+      ? galleryImages
+      : product?.image
+        ? [product.image]
+        : [];
+
+  useEffect(() => {
+    setQty(1);
+    setIsAdded(false);
+    setShowAddedMessage(false);
+    setCurrentImageIndex(0);
+    setFullscreenIndex(0);
+    setIsGalleryOpen(false);
+    setLoadedImages({});
+  }, [product?.id]);
 
   useEffect(() => {
     async function loadProduct() {
@@ -51,11 +109,45 @@ export default function ProductDetailsScreen() {
 
     loadProduct();
   }, [id]);
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadRelatedProducts() {
+      if (!currentProductId) {
+        if (isMounted) setRelatedProducts([]);
+        return;
+      }
+
+      try {
+        const allProducts: Product[] = currentCategory
+          ? await api.getProducts({ category: currentCategory })
+          : await api.getProducts();
+
+        const filtered = allProducts
+          .filter((item) => String(item.id) !== currentProductId)
+          .slice(0, 8);
+
+        if (isMounted) {
+          setRelatedProducts(filtered);
+        }
+      } catch (error) {
+        console.log("Error loading related products:", error);
+
+        if (isMounted) {
+          setRelatedProducts([]);
+        }
+      }
+    }
+
+    loadRelatedProducts();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [currentProductId, currentCategory]);
   const liked = product
     ? wishlistItems.some((item) => String(item.id) === String(product.id))
     : false;
-
-  const relatedProducts: Product[] = [];
 
   const formatPrice = (value: number) =>
     new Intl.NumberFormat("en-NP", {
@@ -74,17 +166,21 @@ export default function ProductDetailsScreen() {
 
     return () => clearTimeout(timer);
   }, [showAddedMessage]);
-
-  const handleDecreaseQty = () => {
+  const handleDecreaseQty = async () => {
+    if (qty === 1) return;
+    await Haptics.selectionAsync();
     setQty((prev) => Math.max(1, prev - 1));
   };
 
-  const handleIncreaseQty = () => {
+  const handleIncreaseQty = async () => {
+    await Haptics.selectionAsync();
     setQty((prev) => prev + 1);
   };
 
-  const handleAddToCart = () => {
-    if (!product) return;
+  const handleAddToCart = async () => {
+    if (!product || !isInStock) return;
+
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     addToCart({
       id: String(product.id),
@@ -98,8 +194,10 @@ export default function ProductDetailsScreen() {
     setShowAddedMessage(true);
   };
 
-  const handleBuyNow = () => {
-    if (!product) return;
+  const handleBuyNow = async () => {
+    if (!product || !isInStock) return;
+
+    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
     addToCart({
       id: String(product.id),
@@ -109,24 +207,82 @@ export default function ProductDetailsScreen() {
       quantity: qty,
     });
 
-    router.push("/cart");
+    router.push("/checkout");
   };
 
-  const handleToggleWishlist = () => {
+  const handleToggleWishlist = async () => {
     if (!product) return;
+
+    await Haptics.selectionAsync();
 
     toggleWishlist({
       id: String(product.id),
       name: product.name,
       price: product.price,
       image: product.image,
-      category: product.category,
-      rating: product.rating,
+      category: product.category ?? "Beauty Essential",
+      rating: product.rating ?? 4.8,
+    });
+  };
+
+  const handleBackPress = async () => {
+    await Haptics.selectionAsync();
+    router.back();
+  };
+
+  const handleCartPress = async () => {
+    await Haptics.selectionAsync();
+    router.push("/cart");
+  };
+  const handleThumbnailPress = async (index: number) => {
+    await Haptics.selectionAsync();
+    setCurrentImageIndex(index);
+    mainCarouselRef.current?.scrollTo({
+      index,
+      animated: true,
+    });
+  };
+
+  const handleOpenGallery = async (index: number) => {
+    await Haptics.selectionAsync();
+    setFullscreenIndex(index);
+    setIsGalleryOpen(true);
+  };
+
+  const handleFullscreenThumbnailPress = async (index: number) => {
+    await Haptics.selectionAsync();
+    setFullscreenIndex(index);
+    fullscreenCarouselRef.current?.scrollTo({
+      index,
+      animated: true,
+    });
+  };
+
+  const handleCloseGallery = async () => {
+    await Haptics.selectionAsync();
+    setIsGalleryOpen(false);
+    setCurrentImageIndex(fullscreenIndex);
+
+    requestAnimationFrame(() => {
+      mainCarouselRef.current?.scrollTo({
+        index: fullscreenIndex,
+        animated: false,
+      });
+    });
+  };
+
+  const handleRelatedProductPress = async (productId: string | number) => {
+    await Haptics.selectionAsync();
+
+    router.push({
+      pathname: "/product/[id]",
+      params: { id: String(productId) },
     });
   };
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="dark-content" />
         <Skeleton height={420} />
 
         <View style={styles.content}>
@@ -166,11 +322,55 @@ export default function ProductDetailsScreen() {
         contentContainerStyle={styles.scrollContent}
       >
         <View style={styles.imageWrap}>
-          <Image source={{ uri: product.image }} style={styles.image} />
+          <Carousel
+            ref={mainCarouselRef}
+            loop={false}
+            pagingEnabled
+            snapEnabled
+            overscrollEnabled={false}
+            width={screenWidth}
+            height={440}
+            data={galleryData}
+            onSnapToItem={setCurrentImageIndex}
+            renderItem={({ item, index }) => {
+              const isLoaded = loadedImages[item];
+
+              return (
+                <Pressable
+                  style={styles.carouselItem}
+                  onPress={() => handleOpenGallery(index)}
+                >
+                  {!isLoaded && (
+                    <MotiView
+                      from={{ opacity: 0.35 }}
+                      animate={{ opacity: 0.9 }}
+                      transition={{
+                        type: "timing",
+                        duration: 900,
+                        loop: true,
+                      }}
+                      style={styles.imageShimmer}
+                    />
+                  )}
+
+                  <Image
+                    source={{ uri: item }}
+                    style={[styles.image, !isLoaded && { opacity: 0 }]}
+                    onLoad={() =>
+                      setLoadedImages((prev) => ({
+                        ...prev,
+                        [item]: true,
+                      }))
+                    }
+                  />
+                </Pressable>
+              );
+            }}
+          />
 
           <Pressable
             style={[styles.iconButton, styles.backButton]}
-            onPress={() => router.back()}
+            onPress={handleBackPress}
           >
             <Ionicons name="arrow-back" size={20} color="#111827" />
           </Pressable>
@@ -187,10 +387,7 @@ export default function ProductDetailsScreen() {
               />
             </Pressable>
 
-            <Pressable
-              style={styles.smallIconButton}
-              onPress={() => router.push("/cart")}
-            >
+            <Pressable style={styles.smallIconButton} onPress={handleCartPress}>
               <Ionicons name="bag-outline" size={20} color="#111827" />
 
               {totalItems > 0 && (
@@ -206,17 +403,73 @@ export default function ProductDetailsScreen() {
           <View style={styles.imageBottomOverlay}>
             <View style={styles.overlayPill}>
               <Ionicons name="star" size={12} color="#f59e0b" />
-              <Text style={styles.overlayPillText}>{product.rating}</Text>
+              <Text style={styles.overlayPillText}>{ratingValue}</Text>
             </View>
 
             <View style={styles.overlayPill}>
-              <Text style={styles.overlayPillText}>In Stock</Text>
+              <Text
+                style={[
+                  styles.overlayPillText,
+                  !isInStock && styles.overlayPillTextOut,
+                ]}
+              >
+                {stockText}
+              </Text>
             </View>
           </View>
+
+          {galleryImages.length > 1 && (
+            <View style={styles.paginationWrap}>
+              {galleryImages.map((_, index) => (
+                <View
+                  key={index}
+                  style={[
+                    styles.paginationDot,
+                    index === currentImageIndex && styles.paginationDotActive,
+                  ]}
+                />
+              ))}
+            </View>
+          )}
         </View>
 
-        <View style={styles.content}>
-          <Text style={styles.category}>{product.category}</Text>
+        <MotiView
+          from={{ opacity: 0, translateY: 12 }}
+          animate={{ opacity: 1, translateY: 0 }}
+          transition={{ type: "timing", duration: 320 }}
+          style={styles.content}
+        >
+          {galleryData.length > 1 && (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.thumbnailStripContent}
+              style={styles.thumbnailStrip}
+            >
+              {galleryData.map((item, index) => {
+                const isActive = index === currentImageIndex;
+
+                return (
+                  <Pressable
+                    key={`${item}-${index}`}
+                    onPress={() => handleThumbnailPress(index)}
+                    style={[
+                      styles.thumbnailButton,
+                      isActive && styles.thumbnailButtonActive,
+                    ]}
+                  >
+                    <Image
+                      source={{ uri: item }}
+                      style={styles.thumbnailImage}
+                    />
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          )}
+          <Text style={styles.category}>
+            {product.category || "Beauty Essential"}
+          </Text>
           <Text style={styles.name}>{product.name}</Text>
 
           <Text style={styles.price}>{formatPrice(product.price)}</Text>
@@ -244,11 +497,7 @@ export default function ProductDetailsScreen() {
 
           <View style={styles.sectionCard}>
             <Text style={styles.sectionTitle}>Description</Text>
-            <Text style={styles.description}>
-              A premium beauty essential crafted for everyday confidence, smooth
-              application, and a polished self-care routine. Designed to feel
-              lightweight, comfortable, and elegant in your daily regimen.
-            </Text>
+            <Text style={styles.description}>{descriptionText}</Text>
           </View>
           {/* why you'll love it  */}
           <View style={styles.sectionCard}>
@@ -358,7 +607,7 @@ export default function ProductDetailsScreen() {
 
             <View style={styles.reviewTopRow}>
               <View style={styles.reviewScoreWrap}>
-                <Text style={styles.reviewScore}>{product.rating}</Text>
+                <Text style={styles.reviewScore}>{ratingValue}</Text>
                 <View style={styles.reviewStarsRow}>
                   <Ionicons name="star" size={14} color="#f59e0b" />
                   <Ionicons name="star" size={14} color="#f59e0b" />
@@ -379,23 +628,28 @@ export default function ProductDetailsScreen() {
           </View>
           {/* show cart added message  */}
           {showAddedMessage && (
-            <View style={styles.addedMessageWrap}>
-              <Text style={styles.addedMessageText}>
-                Added to cart successfully.
-              </Text>
+            <MotiView
+              from={{ opacity: 0, translateY: 8 }}
+              animate={{ opacity: 1, translateY: 0 }}
+              transition={{ type: "timing", duration: 240 }}
+              style={styles.addedMessageWrap}
+            >
+              <View style={styles.addedMessageLeft}>
+                <Ionicons name="checkmark-circle" size={18} color="#16a34a" />
+                <Text style={styles.addedMessageText}>Added to cart</Text>
+              </View>
 
-              <Pressable onPress={() => router.push("/cart")}>
+              <Pressable onPress={handleCartPress}>
                 <Text style={styles.viewCartText}>View Cart</Text>
               </Pressable>
-            </View>
+            </MotiView>
           )}
-
           {relatedProducts.length > 0 && (
             <View style={styles.relatedSection}>
               <View style={styles.relatedHeader}>
                 <Text style={styles.relatedTitle}>You may also like</Text>
                 <Text style={styles.relatedSubtitle}>
-                  More picks from {product.category}
+                  More picks from {product.category || "this collection"}
                 </Text>
               </View>
 
@@ -408,12 +662,7 @@ export default function ProductDetailsScreen() {
                   <Pressable
                     key={item.id}
                     style={styles.relatedCard}
-                    onPress={() =>
-                      router.push({
-                        pathname: "/product/[id]",
-                        params: { id: item.id },
-                      })
-                    }
+                    onPress={() => handleRelatedProductPress(item.id)}
                   >
                     <Image
                       source={{ uri: item.image }}
@@ -422,9 +671,8 @@ export default function ProductDetailsScreen() {
 
                     <View style={styles.relatedCardContent}>
                       <Text style={styles.relatedCategory}>
-                        {item.category}
+                        {item.category || "Beauty Essential"}
                       </Text>
-
                       <Text style={styles.relatedName} numberOfLines={2}>
                         {item.name}
                       </Text>
@@ -437,7 +685,9 @@ export default function ProductDetailsScreen() {
                         <View style={styles.relatedRatingWrap}>
                           <Ionicons name="star" size={12} color="#f59e0b" />
                           <Text style={styles.relatedRatingText}>
-                            {item.rating}
+                            {typeof item.rating === "number"
+                              ? item.rating.toFixed(1)
+                              : "4.8"}
                           </Text>
                         </View>
                       </View>
@@ -447,60 +697,241 @@ export default function ProductDetailsScreen() {
               </ScrollView>
             </View>
           )}
-        </View>
+        </MotiView>
       </ScrollView>
 
       <View style={styles.footer}>
         <View>
-          <Text style={styles.footerLabel}>Total</Text>
-          <Text style={styles.footerAmount}>
-            {formatPrice(product.price * qty)}
+          <Text style={styles.footerLabel}>
+            Total {qty > 1 ? `(${qty} items)` : "(1 item)"}
           </Text>
+          <Text style={styles.footerAmount}>{formatPrice(totalPrice)}</Text>
         </View>
 
         <View style={styles.footerActions}>
-          <Pressable style={styles.buyNowBtn} onPress={handleBuyNow}>
-            <Text style={styles.buyNowText}>Buy Now</Text>
+          <Pressable
+            style={[
+              styles.addToCartBtn,
+              styles.addToCartBtnSecondary,
+              !isInStock && styles.disabledBtn,
+            ]}
+            onPress={handleAddToCart}
+            disabled={!isInStock}
+            android_ripple={{ color: "#f4dfe6" }}
+          >
+            <Text style={styles.addToCartTextSecondary}>
+              {isAdded ? "Added" : "Add to Cart"}
+            </Text>
           </Pressable>
 
-          <Pressable style={styles.addToCartBtn} onPress={handleAddToCart}>
-            <Text style={styles.addToCartText}>
-              {isAdded ? "Added" : "Add to Cart"}
+          <Pressable
+            style={[styles.buyNowBtn, !isInStock && styles.disabledPrimaryBtn]}
+            onPress={handleBuyNow}
+            disabled={!isInStock}
+            android_ripple={{ color: "#c85f7e" }}
+          >
+            <Text style={styles.buyNowText}>
+              {isInStock ? "Buy Now" : "Out of Stock"}
             </Text>
           </Pressable>
         </View>
       </View>
+      <Modal
+        visible={isGalleryOpen}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={handleCloseGallery}
+      >
+        <View style={styles.modalBackdrop}>
+          <SafeAreaView style={styles.modalSafeArea}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalCounter}>
+                {fullscreenIndex + 1} / {galleryData.length}
+              </Text>
+
+              <Pressable
+                style={styles.modalCloseButton}
+                onPress={handleCloseGallery}
+              >
+                <Ionicons name="close" size={22} color="#fff" />
+              </Pressable>
+            </View>
+
+            <Carousel
+              ref={fullscreenCarouselRef}
+              loop={false}
+              pagingEnabled
+              snapEnabled
+              overscrollEnabled={false}
+              width={screenWidth}
+              height={screenHeight * 0.72}
+              data={galleryData}
+              defaultIndex={fullscreenIndex}
+              onSnapToItem={setFullscreenIndex}
+              renderItem={({ item }) => {
+                const isLoaded = loadedImages[item];
+
+                return (
+                  <View style={styles.fullscreenSlide}>
+                    {!isLoaded && (
+                      <MotiView
+                        from={{ opacity: 0.18 }}
+                        animate={{ opacity: 0.36 }}
+                        transition={{
+                          type: "timing",
+                          duration: 900,
+                          loop: true,
+                        }}
+                        style={styles.fullscreenImageShimmer}
+                      />
+                    )}
+
+                    <Image
+                      source={{ uri: item }}
+                      style={[
+                        styles.fullscreenImage,
+                        !isLoaded && { opacity: 0 },
+                      ]}
+                      resizeMode="contain"
+                      onLoad={() =>
+                        setLoadedImages((prev) => ({
+                          ...prev,
+                          [item]: true,
+                        }))
+                      }
+                    />
+                  </View>
+                );
+              }}
+            />
+
+            {galleryData.length > 1 && (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.modalThumbnailStripContent}
+                style={styles.modalThumbnailStrip}
+              >
+                {galleryData.map((item, index) => {
+                  const isActive = index === fullscreenIndex;
+
+                  return (
+                    <Pressable
+                      key={`modal-${item}-${index}`}
+                      onPress={() => handleFullscreenThumbnailPress(index)}
+                      style={[
+                        styles.modalThumbnailButton,
+                        isActive && styles.modalThumbnailButtonActive,
+                      ]}
+                    >
+                      <Image
+                        source={{ uri: item }}
+                        style={styles.modalThumbnailImage}
+                      />
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            )}
+          </SafeAreaView>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  thumbnailStrip: {
+    marginBottom: 16,
+  },
+
+  thumbnailStripContent: {
+    paddingRight: 10,
+  },
+
+  thumbnailButton: {
+    width: 72,
+    height: 72,
+    borderRadius: 16,
+    overflow: "hidden",
+    marginRight: 10,
+    borderWidth: 2,
+    borderColor: "transparent",
+    backgroundColor: "#fff",
+  },
+
+  thumbnailButtonActive: {
+    borderColor: "#d96c8a",
+  },
+
+  thumbnailImage: {
+    width: "100%",
+    height: "100%",
+    resizeMode: "cover",
+  },
   container: {
     flex: 1,
-    backgroundColor: "#fff7f8",
+    backgroundColor: "#ffffff",
   },
   scrollContent: {
-    paddingBottom: 140,
+    paddingBottom: 176,
   },
   imageWrap: {
     position: "relative",
-    height: 420,
-    backgroundColor: "#ffffff",
+    height: 440,
+    backgroundColor: "#fff",
+    overflow: "hidden",
   },
   image: {
     width: "100%",
     height: "100%",
     resizeMode: "cover",
   },
+  imageShimmer: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "#f6e9ee",
+    zIndex: 1,
+  },
   iconButton: {
     position: "absolute",
     top: 16,
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: "rgba(255,255,255,0.92)",
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(255,255,255,0.94)",
     alignItems: "center",
     justifyContent: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
+  },
+  carouselItem: {
+    width: "100%",
+    height: "100%",
+    backgroundColor: "#fff",
+  },
+  paginationWrap: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 16,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 6,
+  },
+  paginationDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.45)",
+  },
+  paginationDotActive: {
+    width: 18,
+    backgroundColor: "#ffffff",
   },
   backButton: {
     left: 16,
@@ -514,12 +945,17 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   smallIconButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: "rgba(255,255,255,0.92)",
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(255,255,255,0.94)",
     alignItems: "center",
     justifyContent: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
   },
   badge: {
     position: "absolute",
@@ -542,7 +978,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     left: 16,
     right: 16,
-    bottom: 16,
+    bottom: 46,
     flexDirection: "row",
     gap: 10,
   },
@@ -560,8 +996,16 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#111827",
   },
+  overlayPillTextOut: {
+    color: "#b45309",
+  },
   content: {
+    marginTop: -24,
+    backgroundColor: "#fffafb",
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
     padding: 20,
+    paddingTop: 24,
   },
   category: {
     fontSize: 13,
@@ -572,14 +1016,15 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
   name: {
-    fontSize: 28,
+    fontSize: 30,
     fontWeight: "700",
     color: "#111827",
-    lineHeight: 34,
+    lineHeight: 36,
     marginBottom: 10,
+    letterSpacing: -0.4,
   },
   price: {
-    fontSize: 24,
+    fontSize: 26,
     fontWeight: "800",
     color: "#111827",
     marginBottom: 18,
@@ -606,9 +1051,11 @@ const styles = StyleSheet.create({
   },
   sectionCard: {
     backgroundColor: "#ffffff",
-    borderRadius: 18,
+    borderRadius: 20,
     padding: 16,
     marginBottom: 14,
+    borderWidth: 1,
+    borderColor: "#f7e8ed",
   },
   sectionTitle: {
     fontSize: 16,
@@ -647,18 +1094,22 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     alignSelf: "flex-start",
-    backgroundColor: "#fff7f8",
+    backgroundColor: "#fff6f8",
     borderRadius: 999,
     paddingHorizontal: 8,
     paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: "#f3dce4",
   },
   qtyBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: "#ffffff",
     alignItems: "center",
     justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#f1e5e8",
   },
   qtyBtnText: {
     fontSize: 20,
@@ -696,12 +1147,101 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: "#fffafb",
+    backgroundColor: "rgba(255,250,251,0.98)",
     borderTopWidth: 1,
     borderTopColor: "#f1e5e8",
     paddingHorizontal: 16,
     paddingTop: 14,
     paddingBottom: 18,
+    shadowColor: "#000",
+    shadowOpacity: 0.08,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: -6 },
+    elevation: 16,
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.96)",
+  },
+
+  modalSafeArea: {
+    flex: 1,
+  },
+
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingTop: 8,
+  },
+
+  modalCounter: {
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "700",
+  },
+
+  modalCloseButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.12)",
+  },
+
+  fullscreenSlide: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  fullscreenImage: {
+    width: "100%",
+    height: "100%",
+  },
+
+  fullscreenImageShimmer: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(255,255,255,0.08)",
+  },
+
+  modalThumbnailStrip: {
+    marginTop: 14,
+  },
+
+  modalThumbnailStripContent: {
+    paddingHorizontal: 16,
+    paddingRight: 24,
+  },
+
+  modalThumbnailButton: {
+    width: 68,
+    height: 68,
+    borderRadius: 14,
+    overflow: "hidden",
+    marginRight: 10,
+    borderWidth: 2,
+    borderColor: "transparent",
+    backgroundColor: "rgba(255,255,255,0.08)",
+  },
+
+  modalThumbnailButtonActive: {
+    borderColor: "#ffffff",
+  },
+
+  modalThumbnailImage: {
+    width: "100%",
+    height: "100%",
+    resizeMode: "cover",
+  },
+  disabledBtn: {
+    opacity: 0.55,
+  },
+
+  disabledPrimaryBtn: {
+    backgroundColor: "#e9b8c7",
   },
   footerLabel: {
     fontSize: 12,
@@ -719,30 +1259,32 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   buyNowBtn: {
-    flex: 1,
-    backgroundColor: "#ffffff",
-    borderRadius: 999,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 15,
-    borderWidth: 1,
-    borderColor: "#f0d7df",
-  },
-  buyNowText: {
-    color: "#111827",
-    fontSize: 15,
-    fontWeight: "700",
-  },
-  addToCartBtn: {
-    flex: 1,
+    flex: 1.2,
     backgroundColor: "#d96c8a",
     borderRadius: 999,
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 15,
   },
-  addToCartText: {
+  buyNowText: {
     color: "#ffffff",
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  addToCartBtn: {
+    flex: 1,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 15,
+  },
+  addToCartBtnSecondary: {
+    backgroundColor: "#ffffff",
+    borderWidth: 1,
+    borderColor: "#f0d7df",
+  },
+  addToCartTextSecondary: {
+    color: "#111827",
     fontSize: 15,
     fontWeight: "700",
   },
@@ -913,5 +1455,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 22,
     color: "#4b5563",
+  },
+  addedMessageLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
 });

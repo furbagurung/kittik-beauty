@@ -1,0 +1,10 @@
+$kind: collection
+name: 'Kittik Beauty API'
+description: 'Filesystem-mode Postman collection generated from the implemented Express backend in src/app.js, routes, controllers, and auth middleware.'
+variables:
+  - key: baseUrl
+    value: 'http://localhost:5000/api'
+    description: 'Base URL for the local Express API'
+  - key: authToken
+    value: 'paste-bearer-token-here'
+    description: 'JWT bearer token returned from the login or signup endpoint'

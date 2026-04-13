@@ -47,6 +47,9 @@ export type PaymentPayload = {
   customerName: string;
   phone: string;
   method: PaymentMethod;
+  redirectUrl?: string;
+  paymentId?: string;
+  providerReference?: string;
 };
 
 export function buildPaymentPayload(order: Order): PaymentPayload {

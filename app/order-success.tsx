@@ -1,8 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { Pressable, SafeAreaView, StyleSheet, Text, View } from "react-native";
 
 export default function OrderSuccessScreen() {
+  const { orderId } = useLocalSearchParams<{ orderId?: string }>();
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
@@ -22,6 +24,13 @@ export default function OrderSuccessScreen() {
           Thank you for shopping with Kittik Beauty. Your order has been placed
           successfully and is now being prepared.
         </Text>
+
+        {orderId ? (
+          <View style={styles.orderPill}>
+            <Text style={styles.orderPillLabel}>Order ID</Text>
+            <Text style={styles.orderPillValue}>{orderId}</Text>
+          </View>
+        ) : null}
 
         <View style={styles.infoCard}>
           <View style={styles.infoRow}>
@@ -70,18 +79,40 @@ export default function OrderSuccessScreen() {
         </View>
 
         <View style={styles.actions}>
+          {orderId ? (
+            <Pressable
+              style={styles.primaryBtn}
+              onPress={() =>
+                router.replace({
+                  pathname: "/order/[id]",
+                  params: { id: orderId },
+                })
+              }
+            >
+              <Text style={styles.primaryBtnText}>Track This Order</Text>
+            </Pressable>
+          ) : null}
+
           <Pressable
-            style={styles.primaryBtn}
+            style={orderId ? styles.secondaryBtn : styles.primaryBtn}
             onPress={() => router.replace("/(tabs)")}
           >
-            <Text style={styles.primaryBtnText}>Continue Shopping</Text>
+            <Text
+              style={orderId ? styles.secondaryBtnText : styles.primaryBtnText}
+            >
+              Continue Shopping
+            </Text>
           </Pressable>
 
           <Pressable
-            style={styles.secondaryBtn}
+            style={orderId ? styles.secondaryBtn : styles.primaryBtn}
             onPress={() => router.replace("/orders")}
           >
-            <Text style={styles.secondaryBtnText}>View Orders</Text>
+            <Text
+              style={orderId ? styles.secondaryBtnText : styles.primaryBtnText}
+            >
+              View Orders
+            </Text>
           </Pressable>
         </View>
       </View>
@@ -151,6 +182,29 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginBottom: 24,
     paddingHorizontal: 8,
+  },
+  orderPill: {
+    alignSelf: "center",
+    alignItems: "center",
+    backgroundColor: "#ffffff",
+    borderRadius: 999,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    marginBottom: 18,
+    borderWidth: 1,
+    borderColor: "#f0d7df",
+  },
+  orderPillLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#6b7280",
+    textTransform: "uppercase",
+    marginBottom: 2,
+  },
+  orderPillValue: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#111827",
   },
   infoCard: {
     backgroundColor: "#ffffff",

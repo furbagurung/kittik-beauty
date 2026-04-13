@@ -1,0 +1,19 @@
+$kind: http-request
+method: PATCH
+url: '{{baseUrl}}/orders/:id/status'
+order: 4000
+headers:
+  - key: Authorization
+    value: 'Bearer {{authToken}}'
+  - key: Content-Type
+    value: application/json
+pathVariables:
+  - key: id
+    value: '1'
+    description: 'Numeric order id belonging to the authenticated user'
+body:
+  type: json
+  content: |-
+    {
+      "status": "paid"
+    }

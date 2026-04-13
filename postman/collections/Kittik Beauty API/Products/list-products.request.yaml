@@ -1,0 +1,14 @@
+$kind: http-request
+method: GET
+url: '{{baseUrl}}/products'
+order: 1000
+queryParams:
+  - key: category
+    value: skincare
+    description: 'Optional category filter'
+  - key: search
+    value: serum
+    description: 'Optional text search against name and category'
+  - key: sort
+    value: price_asc
+    description: 'Supported values seen in backend: price_asc, price_desc, rating_desc'

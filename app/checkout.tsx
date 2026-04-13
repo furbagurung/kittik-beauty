@@ -1,11 +1,11 @@
 import { api } from "@/services/api";
+import { initiatePayment } from "@/services/payments/paymentClient";
 import { useAddressStore } from "@/store/addressStore";
 import { useAuthStore } from "@/store/authStore";
 import { useCartStore } from "@/store/cartStore";
 import { useCheckoutStore } from "@/store/checkoutStore";
 import { usePaymentSessionStore } from "@/store/paymentSessionStore";
-import type { PaymentMethod } from "@/types/order";
-import { isOnlinePayment } from "@/utils/payment";
+import type { Order, PaymentMethod } from "@/types/order";
 
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
@@ -46,7 +46,7 @@ export default function CheckoutScreen() {
     address: false,
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
-
+  const [submitError, setSubmitError] = useState("");
   const phoneRef = useRef<TextInput>(null);
   const addressRef = useRef<TextInput>(null);
   const checkoutHydrated = useCheckoutStore((state) => state.hydrated);
@@ -154,103 +154,127 @@ export default function CheckoutScreen() {
       address: address.trim(),
     });
   };
+  const orderPayload = {
+    items: items.map((item) => ({
+      productId: Number(item.id),
+      name: item.name,
+      price: item.price,
+      quantity: item.quantity,
+    })),
+    fullName: fullName.trim(),
+    phone: phone.trim(),
+    address: address.trim(),
+    paymentMethod,
+    subtotal,
+    deliveryFee,
+    total,
+    totalItems,
+  };
+  const checkoutSnapshot = {
+    fullName: fullName.trim(),
+    phone: phone.trim(),
+    address: address.trim(),
+  };
   const handlePlaceOrder = async () => {
+    setSubmitError("");
     setTouched({
       fullName: true,
       phone: true,
       address: true,
     });
 
-    if (!user) {
+    if (!user || !token) {
       router.push({
         pathname: "/login",
         params: { redirectTo: "/checkout" },
       });
       return;
     }
-    if (!token) {
-      router.push({
-        pathname: "/login",
-        params: { redirectTo: "/checkout" },
-      });
-      return;
-    }
+
     if (!items.length || !isFormValid || isSubmitting) return;
+
+    if (isKhaltiSelected) {
+      return;
+    }
 
     try {
       setIsSubmitting(true);
 
-      await new Promise((resolve) => setTimeout(resolve, 900));
+      await new Promise((resolve) => setTimeout(resolve, 400));
 
-      if (isOnlinePayment(paymentMethod)) {
-        const createdOrder = await api.createOrder(token!, {
-          items: items.map((item) => ({
-            productId: Number(item.id),
-            name: item.name,
-            price: item.price,
-            quantity: item.quantity,
-          })),
-          fullName: fullName.trim(),
-          phone: phone.trim(),
-          address: address.trim(),
-          paymentMethod,
-          subtotal,
-          deliveryFee,
-          total,
-          totalItems,
-        });
+      const createdOrder = (await api.createOrder(
+        token,
+        orderPayload,
+      )) as Order;
 
-        const paymentPayload = {
+      saveCheckoutDetails(checkoutSnapshot);
+
+      if (isEsewaSelected) {
+        const paymentResult = await initiatePayment({
           orderId: String(createdOrder.id),
           amount: total,
           customerName: fullName.trim(),
           phone: phone.trim(),
-          method: paymentMethod,
-        };
-
-        setPaymentPayload(paymentPayload);
-
-        saveCheckoutDetails({
-          fullName: fullName.trim(),
-          phone: phone.trim(),
-          address: address.trim(),
+          method: "esewa",
         });
 
-        clearCart();
-        router.push("/payment-confirmation");
+        if (!paymentResult.success) {
+          throw new Error(
+            paymentResult.message || "Failed to initiate eSewa payment",
+          );
+        }
+
+        setPaymentPayload({
+          orderId: String(createdOrder.id),
+          amount: total,
+          customerName: fullName.trim(),
+          phone: phone.trim(),
+          method: "esewa",
+          redirectUrl: paymentResult.redirectUrl,
+          paymentId: paymentResult.paymentId,
+          providerReference: paymentResult.providerReference,
+        });
+
+        router.push({
+          pathname: "/payment-confirmation",
+          params: {
+            orderId: String(createdOrder.id),
+            method: "esewa",
+          },
+        });
         return;
       }
-      await api.createOrder(token!, {
-        items: items.map((item) => ({
-          productId: Number(item.id),
-          name: item.name,
-          price: item.price,
-          quantity: item.quantity,
-        })),
-        fullName: fullName.trim(),
-        phone: phone.trim(),
-        address: address.trim(),
-        paymentMethod,
-        subtotal,
-        deliveryFee,
-        total,
-        totalItems,
-      });
 
-      saveCheckoutDetails({
-        fullName: fullName.trim(),
-        phone: phone.trim(),
-        address: address.trim(),
-      });
       clearCart();
-      router.replace("/order-success");
+
+      router.replace({
+        pathname: "/order-success",
+        params: { orderId: String(createdOrder.id) },
+      });
+    } catch (error) {
+      console.log("Checkout error:", error);
+      setSubmitError(
+        error instanceof Error
+          ? error.message
+          : "Something went wrong during checkout.",
+      );
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const isCheckoutDisabled = !items.length || !isFormValid || isSubmitting;
+  const isEsewaSelected = paymentMethod === "esewa";
+  const isKhaltiSelected = paymentMethod === "khalti";
 
+  const isCheckoutDisabled =
+    !items.length || !isFormValid || isSubmitting || isKhaltiSelected;
+  const checkoutButtonText = !user
+    ? "Login to Continue"
+    : isKhaltiSelected
+      ? "Khalti Coming Soon"
+      : isEsewaSelected
+        ? "Pay with eSewa"
+        : "Place Order";
   return (
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView
@@ -538,9 +562,16 @@ export default function CheckoutScreen() {
                   )}
                 </Pressable>
 
+                {paymentMethod === "esewa" && (
+                  <Text style={styles.gatewayHintText}>
+                    You’ll be redirected to eSewa to complete payment securely.
+                  </Text>
+                )}
+
                 <Pressable
                   style={[
                     styles.paymentOption,
+                    styles.paymentOptionDisabled,
                     paymentMethod === "khalti" && styles.paymentOptionActive,
                   ]}
                   onPress={() => setPaymentMethod("khalti")}
@@ -642,7 +673,9 @@ export default function CheckoutScreen() {
                 <Text style={styles.footerPillText}>Trusted Checkout</Text>
               </View>
             </View>
-
+            {submitError ? (
+              <Text style={styles.submitErrorText}>{submitError}</Text>
+            ) : null}
             <Pressable
               style={[
                 styles.placeOrderBtn,
@@ -660,7 +693,7 @@ export default function CheckoutScreen() {
                     isCheckoutDisabled && styles.placeOrderTextDisabled,
                   ]}
                 >
-                  {user ? "Place Order" : "Login to Place Order"}
+                  {checkoutButtonText}
                 </Text>
               )}
             </Pressable>
@@ -675,6 +708,9 @@ const styles = StyleSheet.create({
   flex: {
     flex: 1,
   },
+  paymentOptionDisabled: {
+    opacity: 0.55,
+  },
   container: {
     flex: 1,
     backgroundColor: "#fff7f8",
@@ -685,6 +721,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+  },
+  gatewayHintText: {
+    fontSize: 12,
+    color: "#6b7280",
+    marginTop: -2,
+    marginBottom: 12,
+    lineHeight: 18,
   },
   backButton: {
     width: 40,
@@ -741,6 +784,12 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     color: "#6b7280",
     marginBottom: 14,
+  },
+  submitErrorText: {
+    color: "#dc2626",
+    fontSize: 12,
+    fontWeight: "600",
+    marginBottom: 10,
   },
   inputLabel: {
     fontSize: 13,

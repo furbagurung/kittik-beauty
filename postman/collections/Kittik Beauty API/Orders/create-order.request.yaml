@@ -1,0 +1,30 @@
+$kind: http-request
+method: POST
+url: '{{baseUrl}}/orders'
+order: 1000
+headers:
+  - key: Authorization
+    value: 'Bearer {{authToken}}'
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "items": [
+        {
+          "productId": 1,
+          "name": "Hydrating Serum",
+          "price": 799,
+          "quantity": 1
+        }
+      ],
+      "fullName": "Test User",
+      "phone": "9800000000",
+      "address": "Kathmandu",
+      "paymentMethod": "cod",
+      "subtotal": 799,
+      "deliveryFee": 50,
+      "total": 849,
+      "totalItems": 1
+    }

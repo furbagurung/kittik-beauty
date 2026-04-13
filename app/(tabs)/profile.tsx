@@ -1,15 +1,49 @@
+import { api } from "@/services/api";
 import { useAuthStore } from "@/store/authStore";
-import { useOrderStore } from "@/store/orderStore";
 import { useWishlistStore } from "@/store/wishlistStore";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
+import { useEffect, useState } from "react";
 import { Pressable, SafeAreaView, StyleSheet, Text, View } from "react-native";
 
 export default function ProfileScreen() {
   const user = useAuthStore((state) => state.user);
+  const token = useAuthStore((state) => state.token);
   const logout = useAuthStore((state) => state.logout);
-  const orderCount = useOrderStore((state) => state.orders.length);
   const wishlistCount = useWishlistStore((state) => state.items.length);
+  const [orderCount, setOrderCount] = useState(0);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadOrderCount() {
+      if (!user || !token) {
+        if (isMounted) setOrderCount(0);
+        return;
+      }
+
+      try {
+        const orders = await api.getOrders(token);
+
+        if (isMounted) {
+          setOrderCount(orders.length);
+        }
+      } catch (error) {
+        console.log("Failed to load order count:", error);
+
+        if (isMounted) {
+          setOrderCount(0);
+        }
+      }
+    }
+
+    loadOrderCount();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [user, token]);
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>

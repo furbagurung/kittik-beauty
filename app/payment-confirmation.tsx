@@ -1,16 +1,82 @@
 import { api } from "@/services/api";
+import { verifyPayment } from "@/services/payments/paymentClient";
 import { useAuthStore } from "@/store/authStore";
+import { useCartStore } from "@/store/cartStore";
 import { usePaymentSessionStore } from "@/store/paymentSessionStore";
 import { getPaymentLabel } from "@/utils/payment";
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
-import { Pressable, SafeAreaView, StyleSheet, Text, View } from "react-native";
+import { router, useLocalSearchParams } from "expo-router";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  Pressable,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import { WebView } from "react-native-webview";
+import type { ShouldStartLoadRequest } from "react-native-webview/lib/WebViewTypes";
+
+type CallbackPayload = {
+  status: string;
+  orderId: string;
+  transactionUuid: string;
+};
+
+function getStringParam(value: unknown): string {
+  if (typeof value === "string") {
+    return value;
+  }
+
+  if (Array.isArray(value) && typeof value[0] === "string") {
+    return value[0];
+  }
+
+  return "";
+}
+
+function isPaymentCallbackUrl(url: string): boolean {
+  return url.includes("payment-confirmation") && url.includes("status=");
+}
+
+function parseCallbackUrl(url: string): CallbackPayload {
+  try {
+    const parsed = new URL(url);
+
+    return {
+      status: parsed.searchParams.get("status")?.toLowerCase() || "",
+      orderId: parsed.searchParams.get("orderId") || "",
+      transactionUuid: parsed.searchParams.get("transaction_uuid") || "",
+    };
+  } catch {
+    return {
+      status: "",
+      orderId: "",
+      transactionUuid: "",
+    };
+  }
+}
 
 export default function PaymentConfirmationScreen() {
   const user = useAuthStore((state) => state.user);
   const token = useAuthStore((state) => state.token);
   const payload = usePaymentSessionStore((state) => state.payload);
   const clearPayload = usePaymentSessionStore((state) => state.clearPayload);
+  const clearCart = useCartStore((state) => state.clearCart);
+  const handledCallbackRef = useRef(false);
+  const { status, orderId, transaction_uuid } = useLocalSearchParams<{
+    status?: string | string[];
+    orderId?: string | string[];
+    transaction_uuid?: string | string[];
+  }>();
+  const [callbackData, setCallbackData] = useState<CallbackPayload | null>(
+    null,
+  );
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [isWebViewLoading, setIsWebViewLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [statusMessage, setStatusMessage] = useState("");
 
   const formatPrice = (value: number) =>
     new Intl.NumberFormat("en-NP", {
@@ -19,10 +85,115 @@ export default function PaymentConfirmationScreen() {
       maximumFractionDigits: 0,
     }).format(value);
 
+  const routeCallback = useMemo(() => {
+    const callbackStatus = getStringParam(status).toLowerCase();
+
+    if (!callbackStatus) {
+      return null;
+    }
+
+    return {
+      status: callbackStatus,
+      orderId: getStringParam(orderId),
+      transactionUuid: getStringParam(transaction_uuid),
+    };
+  }, [orderId, status, transaction_uuid]);
+
+  useEffect(() => {
+    if (routeCallback) {
+      setCallbackData(routeCallback);
+    }
+  }, [routeCallback]);
+
+  const handleCancel = useCallback(() => {
+    clearPayload();
+    router.back();
+  }, [clearPayload]);
+
+  const completeVerifiedPayment = useCallback(
+    async (resolvedOrderId: string, providerReference?: string) => {
+      if (!payload || !token) {
+        throw new Error("Missing payment session");
+      }
+
+      const verification = await verifyPayment({
+        method: payload.method,
+        orderId: resolvedOrderId,
+        paymentId: payload.paymentId,
+        providerReference: providerReference || payload.providerReference,
+      });
+
+      if (!verification.success || verification.status !== "paid") {
+        throw new Error(verification.message || "Payment verification failed");
+      }
+
+      await api.updateOrderStatus(token, resolvedOrderId, "paid");
+      clearCart();
+      clearPayload();
+      router.replace({
+        pathname: "/order-success",
+        params: { orderId: resolvedOrderId },
+      });
+    },
+    [clearCart, clearPayload, payload, token],
+  );
+
+  useEffect(() => {
+    if (!callbackData || handledCallbackRef.current || !payload || !token) {
+      return;
+    }
+
+    const currentPayload = payload;
+    const currentCallback = callbackData;
+    handledCallbackRef.current = true;
+
+    async function handleCallback() {
+      setIsProcessing(true);
+      setErrorMessage("");
+
+      try {
+        if (currentCallback.status !== "success") {
+          setStatusMessage("");
+          setErrorMessage("eSewa payment was not completed.");
+          return;
+        }
+
+        setStatusMessage("Verifying payment...");
+        await completeVerifiedPayment(
+          currentCallback.orderId || currentPayload.orderId,
+          currentCallback.transactionUuid || currentPayload.providerReference,
+        );
+      } catch (error) {
+        setStatusMessage("");
+        setErrorMessage(
+          error instanceof Error
+            ? error.message
+            : "Failed to complete eSewa payment.",
+        );
+      } finally {
+        setIsProcessing(false);
+      }
+    }
+
+    void handleCallback();
+  }, [callbackData, completeVerifiedPayment, payload, token]);
+
+  const handleShouldStartLoadWithRequest = useCallback(
+    (request: ShouldStartLoadRequest) => {
+      if (isPaymentCallbackUrl(request.url)) {
+        setCallbackData(parseCallbackUrl(request.url));
+        return false;
+      }
+
+      return true;
+    },
+    [],
+  );
+
   if (!payload) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.content}>
+        <View style={styles.stateWrap}>
           <View style={styles.iconWrap}>
             <Ionicons name="wallet-outline" size={28} color="#d96c8a" />
           </View>
@@ -42,10 +213,11 @@ export default function PaymentConfirmationScreen() {
       </SafeAreaView>
     );
   }
-  if (!user) {
+
+  if (!user || !token) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.content}>
+        <View style={styles.stateWrap}>
           <View style={styles.iconWrap}>
             <Ionicons name="lock-closed-outline" size={28} color="#d96c8a" />
           </View>
@@ -65,25 +237,6 @@ export default function PaymentConfirmationScreen() {
       </SafeAreaView>
     );
   }
-  const handleConfirmPayment = async () => {
-    if (!token) {
-      router.replace("/login");
-      return;
-    }
-
-    try {
-      await api.updateOrderStatus(token, payload.orderId, "paid");
-      clearPayload();
-      router.replace("/order-success");
-    } catch (error) {
-      console.log("Failed to confirm payment:", error);
-    }
-  };
-
-  const handleCancel = () => {
-    clearPayload();
-    router.back();
-  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -92,56 +245,89 @@ export default function PaymentConfirmationScreen() {
           <Ionicons name="arrow-back" size={20} color="#111827" />
         </Pressable>
 
-        <Text style={styles.headerTitle}>Payment Confirmation</Text>
+        <Text style={styles.headerTitle}>{getPaymentLabel(payload.method)}</Text>
 
         <View style={styles.headerSpacer} />
       </View>
 
-      <View style={styles.content}>
-        <View style={styles.badge}>
-          <Text style={styles.badgeText}>Demo Payment Step</Text>
+      <View style={styles.summaryBar}>
+        <View>
+          <Text style={styles.summaryLabel}>Order {payload.orderId}</Text>
+          <Text style={styles.summaryValue}>{formatPrice(payload.amount)}</Text>
         </View>
 
-        <View style={styles.iconWrap}>
-          <Ionicons name="wallet-outline" size={30} color="#d96c8a" />
+        <View style={styles.summaryPill}>
+          <Ionicons name="shield-checkmark-outline" size={14} color="#d96c8a" />
+          <Text style={styles.summaryPillText}>In-App Checkout</Text>
         </View>
-
-        <Text style={styles.title}>{getPaymentLabel(payload.method)}</Text>
-        <Text style={styles.subtitle}>
-          This screen simulates the online payment step before real gateway
-          integration.
-        </Text>
-
-        <View style={styles.summaryCard}>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Order ID</Text>
-            <Text style={styles.summaryValue}>{payload.orderId}</Text>
-          </View>
-
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Customer</Text>
-            <Text style={styles.summaryValue}>{payload.customerName}</Text>
-          </View>
-
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Phone</Text>
-            <Text style={styles.summaryValue}>{payload.phone}</Text>
-          </View>
-
-          <View style={[styles.summaryRow, styles.totalRow]}>
-            <Text style={styles.totalLabel}>Amount</Text>
-            <Text style={styles.totalValue}>{formatPrice(payload.amount)}</Text>
-          </View>
-        </View>
-
-        <Pressable style={styles.primaryBtn} onPress={handleConfirmPayment}>
-          <Text style={styles.primaryBtnText}>Confirm Payment</Text>
-        </Pressable>
-
-        <Pressable style={styles.secondaryBtn} onPress={handleCancel}>
-          <Text style={styles.secondaryBtnText}>Cancel</Text>
-        </Pressable>
       </View>
+
+      {payload.redirectUrl ? (
+        <View style={styles.webViewWrap}>
+          <WebView
+            source={{ uri: payload.redirectUrl }}
+            onShouldStartLoadWithRequest={handleShouldStartLoadWithRequest}
+            onLoadStart={() => {
+              setIsWebViewLoading(true);
+              setStatusMessage("Opening eSewa...");
+            }}
+            onLoadEnd={() => {
+              setIsWebViewLoading(false);
+              if (!callbackData && !isProcessing) {
+                setStatusMessage("Complete payment in the window below.");
+              }
+            }}
+            onError={() => {
+              setIsWebViewLoading(false);
+              setStatusMessage("");
+              setErrorMessage("Failed to load the eSewa payment page.");
+            }}
+            javaScriptEnabled
+            domStorageEnabled
+            startInLoadingState
+            setSupportMultipleWindows={false}
+            thirdPartyCookiesEnabled
+            style={styles.webView}
+          />
+
+          {(isWebViewLoading || isProcessing || errorMessage) && (
+            <View style={styles.overlay}>
+              {isWebViewLoading || isProcessing ? (
+                <ActivityIndicator color="#d96c8a" style={styles.overlaySpinner} />
+              ) : null}
+              <Text style={styles.overlayTitle}>
+                {statusMessage || "Preparing payment"}
+              </Text>
+              <Text style={styles.overlayText}>
+                {errorMessage ||
+                  "The eSewa payment page is being loaded inside the app."}
+              </Text>
+
+              {errorMessage ? (
+                <Pressable
+                  style={styles.primaryBtn}
+                  onPress={() => {
+                    handledCallbackRef.current = false;
+                    setCallbackData(null);
+                    setErrorMessage("");
+                    setStatusMessage("Opening eSewa...");
+                    setIsWebViewLoading(true);
+                  }}
+                >
+                  <Text style={styles.primaryBtnText}>Try Again</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          )}
+        </View>
+      ) : (
+        <View style={styles.stateWrap}>
+          <Text style={styles.title}>Missing payment URL</Text>
+          <Text style={styles.subtitle}>
+            The backend did not return a valid eSewa redirect URL.
+          </Text>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -157,6 +343,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    backgroundColor: "#fffafb",
   },
   backButton: {
     width: 40,
@@ -174,30 +361,86 @@ const styles = StyleSheet.create({
   headerSpacer: {
     width: 40,
   },
-  content: {
-    flex: 1,
-    justifyContent: "center",
-    paddingHorizontal: 20,
+  summaryBar: {
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    paddingTop: 4,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    backgroundColor: "#fffafb",
+    borderBottomWidth: 1,
+    borderBottomColor: "#f3e4e8",
   },
-  badge: {
-    alignSelf: "center",
+  summaryLabel: {
+    fontSize: 12,
+    color: "#6b7280",
+    marginBottom: 4,
+  },
+  summaryValue: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#111827",
+  },
+  summaryPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
     backgroundColor: "#fff1f5",
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     paddingVertical: 7,
     borderRadius: 999,
-    marginBottom: 18,
   },
-  badgeText: {
+  summaryPillText: {
     fontSize: 12,
     fontWeight: "700",
     color: "#d96c8a",
+  },
+  webViewWrap: {
+    flex: 1,
+    position: "relative",
+    backgroundColor: "#ffffff",
+  },
+  webView: {
+    flex: 1,
+    backgroundColor: "#ffffff",
+  },
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 28,
+    backgroundColor: "rgba(255,247,248,0.96)",
+  },
+  overlaySpinner: {
+    marginBottom: 14,
+  },
+  overlayTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#111827",
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  overlayText: {
+    fontSize: 14,
+    lineHeight: 22,
+    color: "#6b7280",
+    textAlign: "center",
+    marginBottom: 18,
+  },
+  stateWrap: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 24,
   },
   iconWrap: {
     width: 72,
     height: 72,
     borderRadius: 36,
     backgroundColor: "#fff1f5",
-    alignSelf: "center",
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 18,
@@ -216,68 +459,16 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginBottom: 24,
   },
-  summaryCard: {
-    backgroundColor: "#ffffff",
-    borderRadius: 20,
-    padding: 16,
-    marginBottom: 22,
-  },
-  summaryRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 12,
-    gap: 10,
-  },
-  summaryLabel: {
-    fontSize: 14,
-    color: "#6b7280",
-  },
-  summaryValue: {
-    flex: 1,
-    textAlign: "right",
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#111827",
-  },
-  totalRow: {
-    borderTopWidth: 1,
-    borderTopColor: "#f3e4e8",
-    paddingTop: 12,
-    marginTop: 2,
-    marginBottom: 0,
-  },
-  totalLabel: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#111827",
-  },
-  totalValue: {
-    fontSize: 17,
-    fontWeight: "800",
-    color: "#111827",
-  },
   primaryBtn: {
     backgroundColor: "#d96c8a",
-    paddingVertical: 15,
+    paddingHorizontal: 24,
+    paddingVertical: 14,
     borderRadius: 999,
     alignItems: "center",
-    marginBottom: 12,
+    justifyContent: "center",
   },
   primaryBtnText: {
     color: "#ffffff",
-    fontSize: 15,
-    fontWeight: "700",
-  },
-  secondaryBtn: {
-    backgroundColor: "#ffffff",
-    borderWidth: 1,
-    borderColor: "#f0d7df",
-    paddingVertical: 15,
-    borderRadius: 999,
-    alignItems: "center",
-  },
-  secondaryBtnText: {
-    color: "#111827",
     fontSize: 15,
     fontWeight: "700",
   },

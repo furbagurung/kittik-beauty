@@ -1,10 +1,11 @@
 import Skeleton from "@/components/ui/Skeleton";
 import { Product } from "@/types/product";
 import { Ionicons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
-import { MotiView } from "moti";
+import { MotiImage, MotiView } from "moti";
 import { useState } from "react";
-import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 type ProductCardProps = {
   product: Product;
 };
@@ -21,20 +22,24 @@ export default function ProductCard({ product }: ProductCardProps) {
       <Pressable
         style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
         android_ripple={{ color: "#f3e8ee" }}
-        onPress={() =>
+        onPress={async () => {
+          await Haptics.selectionAsync();
+
           router.push({
             pathname: "/product/[id]",
             params: { id: String(product.id) },
-          })
-        }
+          });
+        }}
       >
         <View style={styles.imageWrap}>
           {!imageLoaded && <Skeleton height={170} radius={0} />}
 
-          <Image
+          <MotiImage
             source={{ uri: product.image }}
-            style={[styles.image, { opacity: imageLoaded ? 1 : 0 }]}
+            style={styles.image}
             onLoad={() => setImageLoaded(true)}
+            animate={{ opacity: imageLoaded ? 1 : 0 }}
+            transition={{ type: "timing", duration: 250 }}
           />
         </View>
 
@@ -69,7 +74,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   cardPressed: {
-    opacity: 0.95,
+    opacity: 0.9,
   },
   image: {
     width: "100%",

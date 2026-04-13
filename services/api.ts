@@ -4,6 +4,36 @@ type RequestOptions = RequestInit & {
   token?: string | null;
 };
 
+type EsewaInitiateBody = {
+  orderId: string;
+  amount: number;
+  customerName: string;
+  phone: string;
+  returnUrl?: string;
+};
+
+type EsewaInitiateResponse = {
+  success: boolean;
+  message: string;
+  transaction_uuid: string;
+  amount: number;
+  customerName: string;
+  phone: string;
+  redirectUrl: string;
+};
+
+type EsewaVerifyBody = {
+  orderId: string;
+  paymentId?: string;
+  providerReference?: string;
+};
+
+type EsewaVerifyResponse = {
+  success: boolean;
+  status: string;
+  message: string;
+};
+
 async function request<T>(
   endpoint: string,
   options: RequestOptions = {},
@@ -43,6 +73,7 @@ export const api = {
     const query = searchParams.toString();
     return request<any[]>(`/products${query ? `?${query}` : ""}`);
   },
+
   getProductById: (id: string | number) => {
     return request<any>(`/products/${id}`);
   },
@@ -67,12 +98,14 @@ export const api = {
       token,
     });
   },
+
   getOrderById: (token: string, id: string | number) => {
     return request<any>(`/orders/${id}`, {
       method: "GET",
       token,
     });
   },
+
   createOrder: (token: string, body: any) => {
     return request<any>("/orders", {
       method: "POST",
@@ -80,11 +113,26 @@ export const api = {
       body: JSON.stringify(body),
     });
   },
+
   updateOrderStatus: (token: string, id: string | number, status: string) => {
     return request<any>(`/orders/${id}/status`, {
       method: "PATCH",
       token,
       body: JSON.stringify({ status }),
+    });
+  },
+
+  initiateEsewaPayment: (body: EsewaInitiateBody) => {
+    return request<EsewaInitiateResponse>("/payments/esewa/initiate", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  verifyEsewaPayment: (body: EsewaVerifyBody) => {
+    return request<EsewaVerifyResponse>("/payments/esewa/verify", {
+      method: "POST",
+      body: JSON.stringify(body),
     });
   },
 };
