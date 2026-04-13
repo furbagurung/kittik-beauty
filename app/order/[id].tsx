@@ -130,7 +130,7 @@ export default function OrderDetailsScreen() {
 
           <Pressable
             style={styles.primaryButton}
-            onPress={() => router.replace("/auth/login")}
+            onPress={() => router.replace("/login")}
           >
             <Text style={styles.primaryButtonText}>Login to Continue</Text>
           </Pressable>
@@ -185,7 +185,7 @@ export default function OrderDetailsScreen() {
 
           <Pressable
             style={styles.primaryButton}
-            onPress={() => router.replace("/shop/orders")}
+            onPress={() => router.replace("/orders")}
           >
             <Text style={styles.primaryButtonText}>Back to Orders</Text>
           </Pressable>

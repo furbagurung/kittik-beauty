@@ -139,7 +139,7 @@ export default function OrdersScreen() {
 
           <Pressable
             style={styles.emptyButton}
-            onPress={() => router.push("/auth/login")}
+            onPress={() => router.push("/login")}
           >
             <Text style={styles.emptyButtonText}>Login to Continue</Text>
           </Pressable>

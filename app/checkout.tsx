@@ -5,8 +5,7 @@ import { useAuthStore } from "@/store/authStore";
 import { useCartStore } from "@/store/cartStore";
 import { useCheckoutStore } from "@/store/checkoutStore";
 import { usePaymentSessionStore } from "@/store/paymentSessionStore";
-import type { Order } from "@/types/order";
-import type { PaymentMethod } from "@/types/payment";
+import type { Order, PaymentMethod } from "@/types/order";
 
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
@@ -186,8 +185,8 @@ export default function CheckoutScreen() {
 
     if (!user || !token) {
       router.push({
-        pathname: "/auth/login",
-        params: { redirectTo: "/shop/checkout" },
+        pathname: "/login",
+        params: { redirectTo: "/checkout" },
       });
       return;
     }
@@ -238,7 +237,7 @@ export default function CheckoutScreen() {
         });
 
         router.push({
-          pathname: "/shop/payment-confirmation",
+          pathname: "/payment-confirmation",
           params: {
             orderId: String(createdOrder.id),
             method: "esewa",
@@ -337,7 +336,7 @@ export default function CheckoutScreen() {
 
                   <Pressable
                     style={styles.guestNoticeBtn}
-                    onPress={() => router.push("/auth/login")}
+                    onPress={() => router.push("/login")}
                   >
                     <Text style={styles.guestNoticeBtnText}>
                       Login to Continue

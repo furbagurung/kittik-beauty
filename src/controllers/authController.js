@@ -1,6 +1,5 @@
 import bcrypt from "bcryptjs";
 import { prisma } from "../config/prisma.js";
-import { getUserRole } from "../utils/adminHelpers.js";
 import { generateToken } from "../utils/generateToken.js";
 
 export async function signup(req, res) {
@@ -36,7 +35,6 @@ export async function signup(req, res) {
         id: user.id,
         name: user.name,
         email: user.email,
-        role: getUserRole(user.email),
       },
     });
   } catch (error) {
@@ -78,7 +76,6 @@ export async function login(req, res) {
         id: user.id,
         name: user.name,
         email: user.email,
-        role: getUserRole(user.email),
       },
     });
   } catch (error) {
@@ -87,15 +84,4 @@ export async function login(req, res) {
       error: error.message,
     });
   }
-}
-
-export function getCurrentUser(req, res) {
-  return res.json({
-    user: {
-      id: req.user.id,
-      name: req.user.name,
-      email: req.user.email,
-      role: req.user.role,
-    },
-  });
 }

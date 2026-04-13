@@ -2,7 +2,7 @@ import { api } from "@/services/api";
 import { useAuthStore } from "@/store/authStore";
 import { useWishlistStore } from "@/store/wishlistStore";
 import { Ionicons } from "@expo/vector-icons";
-import { router, type Href } from "expo-router";
+import { router } from "expo-router";
 import { useEffect, useState } from "react";
 import { Pressable, SafeAreaView, StyleSheet, Text, View } from "react-native";
 
@@ -10,29 +10,26 @@ export default function ProfileScreen() {
   const user = useAuthStore((state) => state.user);
   const token = useAuthStore((state) => state.token);
   const logout = useAuthStore((state) => state.logout);
-  const setUser = useAuthStore((state) => state.setUser);
   const wishlistCount = useWishlistStore((state) => state.items.length);
   const [orderCount, setOrderCount] = useState(0);
 
   useEffect(() => {
     let isMounted = true;
 
-    async function loadProfileData() {
-      if (!token) {
+    async function loadOrderCount() {
+      if (!user || !token) {
         if (isMounted) setOrderCount(0);
         return;
       }
 
       try {
-        const session = await api.getCurrentUser(token);
         const orders = await api.getOrders(token);
 
         if (isMounted) {
-          setUser(session.user);
           setOrderCount(orders.length);
         }
       } catch (error) {
-        console.log("Failed to load profile data:", error);
+        console.log("Failed to load order count:", error);
 
         if (isMounted) {
           setOrderCount(0);
@@ -40,12 +37,12 @@ export default function ProfileScreen() {
       }
     }
 
-    loadProfileData();
+    loadOrderCount();
 
     return () => {
       isMounted = false;
     };
-  }, [setUser, token]);
+  }, [user, token]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -69,14 +66,14 @@ export default function ProfileScreen() {
             <View style={styles.authActions}>
               <Pressable
                 style={styles.loginBtn}
-                onPress={() => router.push("/auth/login")}
+                onPress={() => router.push("/login")}
               >
                 <Text style={styles.loginBtnText}>Login</Text>
               </Pressable>
 
               <Pressable
                 style={styles.signupBtn}
-                onPress={() => router.push("/auth/signup")}
+                onPress={() => router.push("/signup")}
               >
                 <Text style={styles.signupBtnText}>Sign Up</Text>
               </Pressable>
@@ -86,10 +83,10 @@ export default function ProfileScreen() {
             style={styles.menuItem}
             onPress={() => {
               if (!user) {
-                router.push("/auth/login");
+                router.push("/login");
                 return;
               }
-              router.push("/shop/orders");
+              router.push("/orders");
             }}
           >
             <View style={styles.menuLeft}>
@@ -129,33 +126,6 @@ export default function ProfileScreen() {
 
             <Ionicons name="chevron-forward" size={18} color="#9ca3af" />
           </Pressable>
-
-          {user?.role === "admin" ? (
-            <Pressable
-              style={[styles.menuItem, styles.menuItemAdmin]}
-              onPress={() => router.push("/admin" as Href)}
-            >
-              <View style={styles.menuLeft}>
-                <View style={[styles.iconWrap, styles.iconWrapAdmin]}>
-                  <Ionicons
-                    name="settings-outline"
-                    size={18}
-                    color="#111827"
-                  />
-                </View>
-                <View>
-                  <Text style={styles.menuText}>Admin Panel</Text>
-                  <Text style={styles.menuSubtext}>
-                    Catalog, orders, customers, and store insights
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.adminBadge}>
-                <Text style={styles.adminBadgeText}>Admin</Text>
-              </View>
-            </Pressable>
-          ) : null}
         </View>
         {user && (
           <View style={styles.section}>
@@ -233,10 +203,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
-  menuItemAdmin: {
-    borderWidth: 1,
-    borderColor: "#f0d7df",
-  },
   menuLeft: {
     flexDirection: "row",
     alignItems: "center",
@@ -252,9 +218,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  iconWrapAdmin: {
-    backgroundColor: "#fde8ef",
-  },
   menuText: {
     fontSize: 15,
     fontWeight: "700",
@@ -264,17 +227,6 @@ const styles = StyleSheet.create({
   menuSubtext: {
     fontSize: 12,
     color: "#6b7280",
-  },
-  adminBadge: {
-    borderRadius: 999,
-    backgroundColor: "#111827",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
-  adminBadgeText: {
-    color: "#ffffff",
-    fontSize: 11,
-    fontWeight: "700",
   },
   infoCard: {
     backgroundColor: "#ffffff",

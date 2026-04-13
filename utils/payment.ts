@@ -1,5 +1,4 @@
-import type { Order } from "@/types/order";
-import type { PaymentMethod } from "@/types/payment";
+import type { Order, PaymentMethod } from "@/types/order";
 
 export type PaymentDisplayConfig = {
   id: PaymentMethod;

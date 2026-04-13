@@ -76,7 +76,7 @@ export default function HomeScreen() {
 
             <Pressable
               style={styles.cartButton}
-              onPress={() => router.push({ pathname: "/shop/cart" })}
+              onPress={() => router.push({ pathname: "/cart" })}
             >
               <Ionicons name="bag-outline" size={22} color="#111827" />
 
@@ -164,7 +164,7 @@ export default function HomeScreen() {
             <Pressable
               onPress={() =>
                 router.push({
-                  pathname: "/shop/products",
+                  pathname: "/products",
                   params:
                     selectedCategory !== "All"
                       ? { category: selectedCategory }

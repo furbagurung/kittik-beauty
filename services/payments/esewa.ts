@@ -11,7 +11,7 @@ export async function initiateEsewaPayment(
   input: InitiatePaymentInput,
 ): Promise<InitiatePaymentResult> {
   try {
-    const returnUrl = Linking.createURL("shop/payment-confirmation");
+    const returnUrl = Linking.createURL("payment-confirmation");
 
     const data = await api.initiateEsewaPayment({
       orderId: input.orderId,

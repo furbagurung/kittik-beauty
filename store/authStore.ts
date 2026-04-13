@@ -1,10 +1,13 @@
 import { api } from "@/services/api";
-import type { AuthUser } from "@/types/auth";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
-export type { AuthUser };
+export type AuthUser = {
+  id: number;
+  name: string;
+  email: string;
+};
 
 type AuthStore = {
   hydrated: boolean;
@@ -13,7 +16,6 @@ type AuthStore = {
   login: (email: string, password: string) => Promise<void>;
   signup: (name: string, email: string, password: string) => Promise<void>;
   logout: () => void;
-  setUser: (user: AuthUser | null) => void;
   setHydrated: (value: boolean) => void;
 };
 
@@ -46,11 +48,6 @@ export const useAuthStore = create<AuthStore>()(
         set({
           user: null,
           token: null,
-        }),
-
-      setUser: (user) =>
-        set({
-          user,
         }),
 
       setHydrated: (value) => set({ hydrated: value }),

@@ -173,7 +173,7 @@ export default function CartScreen() {
 
           <Pressable
             style={styles.checkoutBtn}
-            onPress={() => router.push({ pathname: "/shop/checkout" })}
+            onPress={() => router.push({ pathname: "/checkout" })}
           >
             <Text style={styles.checkoutText}>Proceed to Checkout</Text>
           </Pressable>

@@ -1,6 +1,7 @@
 import { useAuthStore } from "@/store/authStore";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
+
 import { useState } from "react";
 import {
   KeyboardAvoidingView,
@@ -13,29 +14,40 @@ import {
   View,
 } from "react-native";
 
-export default function SignupScreen() {
-  const signup = useAuthStore((state) => state.signup);
+export default function LoginScreen() {
+  const login = useAuthStore((state) => state.login);
   const { redirectTo } = useLocalSearchParams<{
     redirectTo?: string;
   }>();
-  const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [authError, setAuthError] = useState("");
-  const isValid =
-    fullName.trim().length >= 2 &&
-    email.trim().includes("@") &&
-    password.length >= 6;
 
-  const handleSignup = async () => {
+  const emailError =
+    email.trim().length === 0
+      ? ""
+      : !email.includes("@")
+        ? "Enter a valid email."
+        : "";
+
+  const passwordError =
+    password.length === 0
+      ? ""
+      : password.length < 6
+        ? "Password must be at least 6 characters."
+        : "";
+
+  const isValid =
+    email.trim().length > 0 && password.length >= 6 && email.includes("@");
+  const handleLogin = async () => {
     if (!isValid || submitting) return;
 
     try {
       setSubmitting(true);
       setAuthError("");
 
-      await signup(fullName.trim(), email.trim(), password);
+      await login(email.trim(), password);
 
       if (redirectTo) {
         router.replace(redirectTo as any);
@@ -46,12 +58,13 @@ export default function SignupScreen() {
       setAuthError(
         error instanceof Error
           ? error.message
-          : "Signup failed. Please try again.",
+          : "Login failed. Please try again.",
       );
     } finally {
       setSubmitting(false);
     }
   };
+
   return (
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView
@@ -67,27 +80,18 @@ export default function SignupScreen() {
         <View style={styles.content}>
           <View style={styles.hero}>
             <View style={styles.iconWrap}>
-              <Ionicons name="sparkles-outline" size={26} color="#d96c8a" />
+              <Ionicons name="person-outline" size={26} color="#d96c8a" />
             </View>
-            <Text style={styles.title}>Create account</Text>
+            <Text style={styles.title}>Welcome back</Text>
             <Text style={styles.subtitle}>
-              Sign up to save your beauty picks, orders, and checkout details.
+              Sign in to access your profile, orders, and saved details.
             </Text>
           </View>
 
           <View style={styles.formCard}>
-            <Text style={styles.label}>Full Name</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter your full name"
-              placeholderTextColor="#9ca3af"
-              value={fullName}
-              onChangeText={setFullName}
-            />
-
             <Text style={styles.label}>Email</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, emailError ? styles.inputError : undefined]}
               placeholder="Enter your email"
               placeholderTextColor="#9ca3af"
               value={email}
@@ -95,34 +99,40 @@ export default function SignupScreen() {
               keyboardType="email-address"
               autoCapitalize="none"
             />
+            {!!emailError && <Text style={styles.errorText}>{emailError}</Text>}
 
             <Text style={styles.label}>Password</Text>
             <TextInput
-              style={styles.input}
-              placeholder="Create a password"
+              style={[
+                styles.input,
+                passwordError ? styles.inputError : undefined,
+              ]}
+              placeholder="Enter your password"
               placeholderTextColor="#9ca3af"
               value={password}
               onChangeText={setPassword}
               secureTextEntry
             />
+            {!!passwordError && (
+              <Text style={styles.errorText}>{passwordError}</Text>
+            )}
             {!!authError && <Text style={styles.errorText}>{authError}</Text>}
-
             <Pressable
               style={[
                 styles.primaryBtn,
                 (!isValid || submitting) && styles.primaryBtnDisabled,
               ]}
-              onPress={handleSignup}
+              onPress={handleLogin}
               disabled={!isValid || submitting}
             >
               <Text style={styles.primaryBtnText}>
-                {submitting ? "Creating Account..." : "Create Account"}
+                {submitting ? "Logging in..." : "Login"}
               </Text>
             </Pressable>
 
-            <Pressable onPress={() => router.push("/auth/login")}>
+            <Pressable onPress={() => router.push("/signup")}>
               <Text style={styles.linkText}>
-                Already have an account? Login
+                Don’t have an account? Sign up
               </Text>
             </Pressable>
           </View>
@@ -203,7 +213,16 @@ const styles = StyleSheet.create({
     paddingVertical: 13,
     fontSize: 14,
     color: "#111827",
+    marginBottom: 8,
+  },
+  inputError: {
+    borderColor: "#ef4444",
+  },
+  errorText: {
+    color: "#ef4444",
+    fontSize: 12,
     marginBottom: 12,
+    fontWeight: "600",
   },
   primaryBtn: {
     backgroundColor: "#d96c8a",
@@ -227,11 +246,5 @@ const styles = StyleSheet.create({
     color: "#d96c8a",
     fontSize: 14,
     fontWeight: "700",
-  },
-  errorText: {
-    color: "#ef4444",
-    fontSize: 12,
-    marginBottom: 12,
-    fontWeight: "600",
   },
 });

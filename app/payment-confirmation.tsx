@@ -254,7 +254,7 @@ export default function PaymentConfirmationScreen() {
 
           <Pressable
             style={styles.primaryBtn}
-            onPress={() => router.replace("/shop/checkout")}
+            onPress={() => router.replace("/checkout")}
           >
             <Text style={styles.primaryBtnText}>Back to Checkout</Text>
           </Pressable>
@@ -278,7 +278,7 @@ export default function PaymentConfirmationScreen() {
 
           <Pressable
             style={styles.primaryBtn}
-            onPress={() => router.replace("/auth/login")}
+            onPress={() => router.replace("/login")}
           >
             <Text style={styles.primaryBtnText}>Login to Continue</Text>
           </Pressable>

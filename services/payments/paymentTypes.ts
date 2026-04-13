@@ -1,7 +1,4 @@
-import type {
-  PaymentMethod,
-  PaymentVerificationStatus,
-} from "@/types/payment";
+import type { PaymentMethod } from "@/types/order";
 
 export type InitiatePaymentInput = {
   orderId: string;
@@ -33,6 +30,6 @@ export type VerifyPaymentInput = {
 
 export type VerifyPaymentResult = {
   success: boolean;
-  status: PaymentVerificationStatus;
+  status: "paid" | "pending" | "failed";
   message?: string;
 };

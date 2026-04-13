@@ -12,7 +12,7 @@ const ESEWA_STATUS_CHECK_URL =
   "https://rc.esewa.com.np/api/epay/transaction/status/";
 const ESEWA_APP_REDIRECT_URL =
   process.env.ESEWA_APP_REDIRECT_URL ||
-  "kittikbeauty://shop/payment-confirmation";
+  "kittikbeauty://payment-confirmation";
 const ESEWA_WEB_SUCCESS_URL =
   process.env.ESEWA_WEB_SUCCESS_URL || "https://developer.esewa.com.np/success";
 const ESEWA_WEB_FAILURE_URL =
