@@ -1,6 +1,6 @@
 # Kittik Beauty
 
-Kittik Beauty is an Expo Router based React Native ecommerce app with an Express backend. The current codebase supports backend-backed auth, product browsing, cart and checkout, order history, and an in-app eSewa payment handoff.
+Kittik Beauty is a buyer-facing Expo Router React Native ecommerce app with an Express backend. The current codebase supports backend-backed auth, product browsing, cart and checkout, order history, and an in-app eSewa payment handoff with backend callback and verification support.
 
 Additional documentation:
 
@@ -10,14 +10,17 @@ Additional documentation:
 
 The app currently includes:
 
+- buyer-only mobile routes after the admin surface was removed from the app shell
 - backend-backed login and signup
 - backend-backed product listing and product detail fetches
 - rich product detail pages with image carousel, fullscreen gallery, and related products
 - cart, wishlist, saved addresses, and persisted checkout details
 - checkout with `cod`, `esewa`, and `khalti` payment selection
 - in-app eSewa payment loading through `react-native-webview`
+- backend eSewa redirect, callback handling, signature validation, and transaction status verification
 - backend order creation, order history, and order detail screens
 - order success and payment status handling
+- a repo-local Postman workspace for health, auth, product, and order endpoints
 
 ## Tech Stack
 
@@ -56,6 +59,12 @@ npm install
 npm run start:server
 ```
 
+For backend development with auto-reload:
+
+```bash
+npm run dev:server
+```
+
 3. Start the app
 
 ```bash
@@ -68,6 +77,7 @@ Useful scripts:
 - `npm run ios`
 - `npm run web`
 - `npm run lint`
+- `npm run seed`
 - `npx tsc --noEmit`
 
 Important:
@@ -91,6 +101,8 @@ src/routes/             Backend route modules
 src/controllers/        Backend controllers
 src/config/             Prisma setup
 docs/                   Project documentation
+.postman/               Postman Local View registration
+postman/                Repo-local Postman collections and globals
 ```
 
 ## Main Frontend Routes
@@ -147,6 +159,7 @@ The Express app entry is [src/app.js](/d:/Development/kittik-beauty/src/app.js:1
 
 Mounted API route groups:
 
+- `/api/health`
 - `/api/auth`
 - `/api/products`
 - `/api/orders`
@@ -156,7 +169,14 @@ Current payment routes:
 
 - `POST /api/payments/esewa/initiate`
 - `GET /api/payments/esewa/redirect/:transactionUuid`
+- `ALL /api/payments/esewa/callback/:transactionUuid`
 - `POST /api/payments/esewa/verify`
+
+Protected routes:
+
+- all `/api/orders/*` routes require `Authorization: Bearer <token>`
+- `POST /api/payments/esewa/initiate` requires `Authorization: Bearer <token>`
+- `POST /api/payments/esewa/verify` requires `Authorization: Bearer <token>`
 
 ## State Management
 
@@ -199,9 +219,9 @@ The app uses small focused Zustand stores.
 4. The backend generates a signed eSewa form payload and returns a backend `redirectUrl`.
 5. `app/payment-confirmation.tsx` opens that URL inside a WebView.
 6. The backend redirect page auto-submits a `POST` form to the eSewa UAT payment endpoint.
-7. On return, the payment screen intercepts the callback URL.
-8. The app calls `POST /api/payments/esewa/verify`.
-9. If verification succeeds, the app updates the order status to `paid` and routes to success.
+7. eSewa returns through the backend callback route, which redirects back into the app with payment metadata.
+8. The payment screen intercepts the callback URL and calls `POST /api/payments/esewa/verify`.
+9. The backend verifies the callback signature, confirms the remote eSewa transaction status, marks the order as `paid`, and the app routes to success.
 
 ### Khalti
 
@@ -220,18 +240,40 @@ The app uses small focused Zustand stores.
 - [src/routes/paymentRoutes.js](/d:/Development/kittik-beauty/src/routes/paymentRoutes.js:1)
 - [src/controllers/paymentController.js](/d:/Development/kittik-beauty/src/controllers/paymentController.js:1)
 
+## Postman Workspace
+
+The repository includes a Postman Local View workspace:
+
+- [.postman/resources.yaml](/d:/Development/kittik-beauty/.postman/resources.yaml:1)
+- [postman/globals/workspace.globals.yaml](/d:/Development/kittik-beauty/postman/globals/workspace.globals.yaml:1)
+- `postman/collections/Kittik Beauty API/...`
+
+Current request groups:
+
+- Health
+- Auth
+- Products
+- Orders
+
+Local setup notes:
+
+- set `baseUrl` to your backend API root, for example `http://localhost:5000/api` or your LAN IP such as `http://192.168.1.66:5000/api`
+- set `authToken` after logging in if you want to run the protected order requests
+- payment routes are implemented in the backend, but Postman request files for them are not committed yet
+
 ## Current Notes
 
 - The app is no longer purely mock-data or local-auth driven; products, auth, and orders are API-backed.
-- eSewa now has a backend initiation route and an in-app payment surface.
-- eSewa verification is still placeholder-friendly on the backend and should be replaced with real status verification before production.
+- The current mobile app is the buyer experience only; the earlier admin surface is no longer mounted in the app shell.
+- eSewa now has a backend initiation route, backend callback page, in-app WebView payment surface, and server-side verification against eSewa status APIs.
 - `paymentSessionStore` remains intentionally in-memory.
 - The API base URL is still hardcoded in the frontend service layer and should be environment-configured later.
 
 ## Suggested Next Improvements
 
-- replace placeholder eSewa verification with real server-side status verification
 - add Khalti backend initiation and verification routes
+- add committed Postman requests for the payment endpoints
+- expire or persist pending eSewa sessions instead of keeping them only in process memory
 - move frontend API base URL and payment config to environment-based configuration
 - remove or repurpose the legacy `orderStore`
 - add automated tests for checkout, payment, and backend route handlers

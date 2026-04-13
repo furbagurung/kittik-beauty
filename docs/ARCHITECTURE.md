@@ -1,17 +1,19 @@
 # Architecture
 
-This document describes the current Kittik Beauty architecture across the Expo app and the Express backend.
+This document describes the current Kittik Beauty architecture across the buyer-facing Expo app, the Express backend, and the repo-local API workspace assets.
 
 ## 1. System Shape
 
-Kittik Beauty now has two main layers:
+Kittik Beauty now has two main runtime layers:
 
-- a mobile app in `app/`, `components/`, `services/`, `store/`, and `utils/`
+- a buyer mobile app in `app/`, `components/`, `services/`, `store/`, and `utils/`
 - an Express backend in `src/` that serves auth, products, orders, and payment routes
+
+The repository also includes a repo-local Postman workspace in `.postman/` and `postman/` for API testing.
 
 At a high level:
 
-- `app/` owns routes and screen-level UI
+- `app/` owns buyer routes and screen-level UI
 - `components/` owns reusable UI and motion primitives
 - `services/api.ts` is the frontend HTTP entry point
 - `services/payments/` contains payment-provider adapters used by checkout
@@ -35,6 +37,8 @@ It mounts:
 - product detail
 - payment confirmation
 - order success
+
+There is no admin route group mounted in the current app shell.
 
 ### Main shopper routes
 
@@ -84,6 +88,7 @@ It mounts:
 
 From [src/app.js](/d:/Development/kittik-beauty/src/app.js:1):
 
+- `GET /api/health`
 - `/api/auth`
 - `/api/products`
 - `/api/orders`
@@ -102,6 +107,7 @@ From [src/app.js](/d:/Development/kittik-beauty/src/app.js:1):
 
 - `POST /api/payments/esewa/initiate`
 - `GET /api/payments/esewa/redirect/:transactionUuid`
+- `ALL /api/payments/esewa/callback/:transactionUuid`
 - `POST /api/payments/esewa/verify`
 
 ### Payment controller responsibilities
@@ -111,7 +117,10 @@ From [src/app.js](/d:/Development/kittik-beauty/src/app.js:1):
 - builds a signed eSewa form payload on the backend
 - stores a short-lived pending payment session in memory
 - serves an HTML page that auto-submits the payment form to eSewa using `POST`
-- returns a placeholder verify response for now
+- serves a backend callback page that redirects back into the app
+- validates the callback signature and amount/product metadata
+- confirms the transaction with the eSewa status API
+- marks the order as `paid` after successful verification
 
 ## 4. Frontend Service Layer
 
@@ -133,6 +142,11 @@ It currently wraps:
 - `verifyEsewaPayment`
 
 This file is also where the frontend API base URL is currently defined.
+
+Protected frontend calls:
+
+- all order calls send a bearer token
+- eSewa initiate and verify also send a bearer token
 
 ### Payment service design
 
@@ -209,9 +223,11 @@ The client uses focused Zustand stores.
 7. The app routes to [app/payment-confirmation.tsx](/d:/Development/kittik-beauty/app/payment-confirmation.tsx).
 8. The payment screen loads the backend redirect page in a WebView.
 9. The backend redirect page auto-submits a `POST` form to `https://rc-epay.esewa.com.np/api/epay/main/v2/form`.
-10. The WebView intercepts the return URL back to `payment-confirmation`.
-11. The app calls `POST /api/payments/esewa/verify`.
-12. If verification succeeds, the app updates the backend order to `paid`, clears the cart, clears the payment session, and routes to success.
+10. eSewa returns through the backend callback route, which redirects into the app with `status`, `orderId`, `transaction_uuid`, and callback `data`.
+11. The WebView intercepts that callback URL.
+12. The app calls `POST /api/payments/esewa/verify`.
+13. The backend verifies the callback signature, checks the remote transaction status, updates the order to `paid`, and returns a normalized result.
+14. The app clears the cart, clears the payment session, and routes to success.
 
 ### Khalti flow
 
@@ -226,11 +242,32 @@ The client uses focused Zustand stores.
 - an in-app payment container
 - a WebView host for the backend redirect page
 - a callback interceptor using `onShouldStartLoadWithRequest`
-- the place where payment verification and order status completion happen
+- the place where frontend payment verification is triggered after the backend callback redirects back into the app
 
 This replaced the earlier manual demo confirm step.
 
-## 8. Domain Model
+## 8. API Workspace
+
+The repository includes a Postman Local View setup:
+
+- [.postman/resources.yaml](/d:/Development/kittik-beauty/.postman/resources.yaml)
+- [postman/globals/workspace.globals.yaml](/d:/Development/kittik-beauty/postman/globals/workspace.globals.yaml)
+- request files under `postman/collections/Kittik Beauty API/`
+
+Current committed request groups:
+
+- Health
+- Auth
+- Products
+- Orders
+
+Current setup assumptions:
+
+- define `baseUrl` locally, for example `http://localhost:5000/api`
+- define `authToken` locally before running protected order requests
+- payment endpoints exist in the backend, but matching Postman request files are not committed yet
+
+## 9. Domain Model
 
 ### Product
 
@@ -275,25 +312,27 @@ Order statuses currently used:
 - `processing`
 - `delivered`
 
-## 9. Current Boundaries
+## 10. Current Boundaries
 
 The codebase is more complete than the earlier prototype, but a few intentional gaps remain:
 
-- eSewa verification is still placeholder-oriented on the backend
 - Khalti is not integrated end-to-end yet
 - `paymentSessionStore` is still in-memory only
+- pending backend eSewa sessions are also kept in process memory with no expiry/persistence layer
 - `store/orderStore.ts` is now secondary to the backend order APIs
 - the frontend API base URL is still hardcoded
+- the committed Postman workspace does not cover payment endpoints yet
 
-## 10. Recommended Next Steps
+## 11. Recommended Next Steps
 
-- replace placeholder eSewa verify logic with real eSewa status verification
 - add backend Khalti initiation and verification routes
+- add Postman request files for the payment routes
+- add expiry or persistence for pending backend eSewa sessions
 - move API and payment config to environment-based frontend configuration
 - remove or refactor the legacy local order store
 - add automated tests around checkout, payment callbacks, and backend payment routes
 
-## 11. Suggested Reading Order
+## 12. Suggested Reading Order
 
 For a practical walkthrough, read in this order:
 
