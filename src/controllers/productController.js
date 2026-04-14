@@ -60,3 +60,31 @@ export async function getProductById(req, res) {
     });
   }
 }
+export async function createProduct(req, res) {
+  try {
+    const { name, price, image, category } = req.body;
+
+    if (!name || !price || !category) {
+      return res.status(400).json({
+        message: "Name, price, and category are required",
+      });
+    }
+
+    const newProduct = await prisma.product.create({
+      data: {
+        name,
+        price: Number(price),
+        image,
+        category,
+        rating: 0,
+      },
+    });
+
+    return res.status(201).json(newProduct);
+  } catch (error) {
+    return res.status(500).json({
+      message: "Failed to create product",
+      error: error.message,
+    });
+  }
+}
