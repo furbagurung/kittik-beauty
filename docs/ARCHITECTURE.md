@@ -41,6 +41,7 @@ The root stack is defined in [`app/_layout.tsx`](../app/_layout.tsx). The main r
 - auth requests
 - product reads
 - order reads and creation
+- customer order cancellation
 - order status updates
 - eSewa payment initiate and verify calls
 
@@ -161,6 +162,7 @@ The write routes are not currently wrapped in `protect` or `isAdmin`.
 - `POST /api/orders`
 - `GET /api/orders`
 - `GET /api/orders/:id`
+- `PATCH /api/orders/:id/cancel`
 - `PATCH /api/orders/:id/status`
 
 `PATCH /api/orders/:id/status` additionally requires `isAdmin`.
@@ -223,6 +225,7 @@ Current order fields include:
 - `total`
 - `totalItems`
 - `status`
+- `stockRestored`
 - `createdAt`
 
 ### OrderItem
@@ -253,8 +256,21 @@ Current order item fields include:
 
 1. Checkout collects customer details, addresses, and payment method.
 2. The app calls `POST /api/orders`.
-3. The backend creates the order and nested `OrderItem` records.
-4. COD orders default to `placed`; online-payment orders default to `pending_payment`.
+3. The backend validates item structure and checks current product stock.
+4. Product stock is decremented inside the same transaction that creates the order.
+5. The backend creates the order and nested `OrderItem` records.
+6. COD orders default to `placed`; online-payment orders default to `pending_payment`.
+
+### Order cancellation
+
+The buyer app exposes cancellation from [`app/order/[id].tsx`](../app/order/%5Bid%5D.tsx).
+
+Current rules:
+
+- customers can cancel orders in `placed` or `pending_payment`
+- admins can cancel orders in `placed`, `pending_payment`, or `processing`
+- stock restoration is performed once for cancellation paths that were still holding inventory
+- restored orders are marked with `stockRestored: true`
 
 ## 7. Payment Architecture
 
@@ -278,7 +294,8 @@ Flow summary:
 6. eSewa returns through the backend callback route.
 7. The app calls the verify route with callback payload data.
 8. The backend verifies signature, amount, product code, and remote status.
-9. The backend updates the order to `paid`.
+9. Successful verification updates the order to `paid`.
+10. Failed or incomplete verification updates the order to `payment_failed` and restores reserved stock.
 
 ### Khalti
 
@@ -292,7 +309,11 @@ Current environment-backed settings include:
 
 - `DATABASE_URL` via [`prisma.config.ts`](../prisma.config.ts)
 - `JWT_SECRET`
-- the optional `ESEWA_*` overrides used in the payment controller
+- required `ESEWA_FORM_URL`
+- required `ESEWA_PRODUCT_CODE`
+- required `ESEWA_SECRET_KEY`
+- required `ESEWA_STATUS_CHECK_URL`
+- required `ESEWA_APP_REDIRECT_URL`
 
 ### Hardcoded configuration still in the repo
 
@@ -313,6 +334,7 @@ The current architecture is workable, but several gaps are still visible in the 
 - the admin product form collects fields the current backend does not save
 - product create and update routes are not backend-protected
 - pending eSewa sessions live only in memory
+- the backend now depends on required eSewa env vars being present at process start
 - Khalti is still a placeholder
 - the old local `orderStore` still exists even though backend orders are the active source of truth
 - payment Postman request files are not committed yet

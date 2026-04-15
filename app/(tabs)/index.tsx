@@ -9,9 +9,11 @@ import { useEffect, useRef, useState } from "react";
 import {
   FlatList,
   Image,
+  Platform,
   Pressable,
   SafeAreaView,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   TextInput,
@@ -35,6 +37,8 @@ export default function HomeScreen() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
+  const feedTabs = ["For You", "New In", "Deals", "Bestsellers"];
+  const [activeFeedTab, setActiveFeedTab] = useState("For You");
   useEffect(() => {
     async function loadProducts() {
       try {
@@ -56,7 +60,7 @@ export default function HomeScreen() {
     loadProducts();
   }, [selectedCategory, searchQuery]);
 
-  const filteredProducts = products.slice(0, 4);
+  const filteredProducts = products.slice(0, 8);
   const scrollToProducts = () => {
     scrollRef.current?.scrollTo({
       y: 500,
@@ -68,18 +72,27 @@ export default function HomeScreen() {
     <SafeAreaView style={styles.safeArea}>
       <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false}>
         <View style={styles.container}>
-          <View style={styles.header}>
-            <View>
-              <Text style={styles.welcome}>Welcome to</Text>
-              <Text style={styles.brand}>Kittik Beauty</Text>
+          <View style={styles.topBar}>
+            <Pressable style={styles.utilityIcon}>
+              <Ionicons name="mail-outline" size={22} color="#111827" />
+            </Pressable>
+
+            <View style={styles.searchShell}>
+              <Ionicons name="search-outline" size={18} color="#111827" />
+              <TextInput
+                placeholder="Search products"
+                placeholderTextColor="#9ca3af"
+                style={styles.searchShellInput}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+              />
             </View>
 
             <Pressable
-              style={styles.cartButton}
+              style={styles.utilityIcon}
               onPress={() => router.push({ pathname: "/cart" })}
             >
               <Ionicons name="bag-outline" size={22} color="#111827" />
-
               {totalItems > 0 && (
                 <View style={styles.badge}>
                   <Text style={styles.badgeText}>{totalItems}</Text>
@@ -88,43 +101,42 @@ export default function HomeScreen() {
             </Pressable>
           </View>
 
-          <View style={styles.searchBar}>
-            <Ionicons name="search-outline" size={18} color="#9ca3af" />
-            <TextInput
-              placeholder="Search skincare, makeup..."
-              placeholderTextColor="#9ca3af"
-              style={styles.input}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
-            {searchQuery.length > 0 && (
-              <Pressable onPress={() => setSearchQuery("")}>
-                <Ionicons name="close-circle" size={18} color="#9ca3af" />
-              </Pressable>
-            )}
-          </View>
-
-          <View style={styles.heroCard}>
-            <View style={styles.heroTextWrap}>
-              <Text style={styles.heroLabel}>Spring Edit</Text>
-              <Text style={styles.heroTitle}>Glow into your best skin</Text>
-              <Text style={styles.heroSubtext}>
-                Premium beauty picks curated for your daily routine.
-              </Text>
-
-              <Pressable style={styles.shopNowBtn} onPress={scrollToProducts}>
-                <Text style={styles.shopNowText}>Shop Now</Text>
-              </Pressable>
-            </View>
-
+          <View style={styles.heroWrap}>
             <Image
               source={{
-                uri: "https://images.unsplash.com/photo-1522337660859-02fbefca4702?q=80&w=800&auto=format&fit=crop",
+                uri: "https://images.unsplash.com/photo-1522337660859-02fbefca4702?q=80&w=1200&auto=format&fit=crop",
               }}
-              style={styles.heroImage}
+              style={styles.heroImageFull}
             />
-          </View>
+            <View style={styles.heroOverlay} />
+            <View style={styles.heroContentOverlay}>
+              <Text style={styles.heroLabelAlt}>NEW EDIT</Text>
+              <Text style={styles.heroTitleAlt}>
+                Shop trending beauty picks
+              </Text>
+              <Text style={styles.heroSubtextAlt}>
+                Everyday skincare, makeup and glow essentials.
+              </Text>
 
+              <Pressable
+                style={styles.shopNowBtnAlt}
+                onPress={scrollToProducts}
+              >
+                <Text style={styles.shopNowTextAlt}>Shop Now</Text>
+              </Pressable>
+            </View>
+          </View>
+          <View style={styles.promoStrip}>
+            <View style={styles.promoItem}>
+              <Ionicons name="car-outline" size={16} color="#7c2d12" />
+              <Text style={styles.promoText}>Free Shipping</Text>
+            </View>
+            <View style={styles.promoDivider} />
+            <View style={styles.promoItem}>
+              <Ionicons name="flash-outline" size={16} color="#7c2d12" />
+              <Text style={styles.promoText}>Flash Deals</Text>
+            </View>
+          </View>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Categories</Text>
           </View>
@@ -159,21 +171,27 @@ export default function HomeScreen() {
             }}
           />
 
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Featured Products</Text>
-            <Pressable
-              onPress={() =>
-                router.push({
-                  pathname: "/products",
-                  params:
-                    selectedCategory !== "All"
-                      ? { category: selectedCategory }
-                      : {},
-                })
-              }
-            >
-              <Text style={styles.sectionLink}>See All</Text>
-            </Pressable>
+          <View style={styles.feedTabsRow}>
+            {feedTabs.map((tab) => {
+              const isActive = activeFeedTab === tab;
+
+              return (
+                <Pressable
+                  key={tab}
+                  style={[styles.feedTab, isActive && styles.feedTabActive]}
+                  onPress={() => setActiveFeedTab(tab)}
+                >
+                  <Text
+                    style={[
+                      styles.feedTabText,
+                      isActive && styles.feedTabTextActive,
+                    ]}
+                  >
+                    {tab}
+                  </Text>
+                </Pressable>
+              );
+            })}
           </View>
 
           {loading ? (
@@ -201,6 +219,139 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
+  feedTabsRow: {
+    flexDirection: "row",
+    paddingHorizontal: 16,
+    gap: 10,
+    marginBottom: 18,
+  },
+  feedTab: {
+    backgroundColor: "#f3f4f6",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  feedTabActive: {
+    backgroundColor: "#111827",
+  },
+  feedTabText: {
+    color: "#374151",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  feedTabTextActive: {
+    color: "#ffffff",
+  },
+  promoStrip: {
+    marginHorizontal: 16,
+    backgroundColor: "#f7f1e4",
+    borderRadius: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    marginBottom: 18,
+  },
+  promoItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  promoText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#7c2d12",
+  },
+  promoDivider: {
+    width: 1,
+    height: 18,
+    backgroundColor: "#e7d8bd",
+  },
+  heroWrap: {
+    height: 220,
+    marginHorizontal: 16,
+    borderRadius: 18,
+    overflow: "hidden",
+    marginBottom: 14,
+    position: "relative",
+  },
+  heroImageFull: {
+    width: "100%",
+    height: "100%",
+  },
+  heroOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(17,24,39,0.26)",
+  },
+  heroContentOverlay: {
+    position: "absolute",
+    left: 16,
+    right: 16,
+    bottom: 18,
+  },
+  heroLabelAlt: {
+    color: "#ffffff",
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 1,
+    marginBottom: 8,
+  },
+  heroTitleAlt: {
+    color: "#ffffff",
+    fontSize: 26,
+    fontWeight: "800",
+    lineHeight: 31,
+    marginBottom: 8,
+  },
+  heroSubtextAlt: {
+    color: "rgba(255,255,255,0.9)",
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 12,
+  },
+  shopNowBtnAlt: {
+    alignSelf: "flex-start",
+    backgroundColor: "#ffffff",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 999,
+  },
+  shopNowTextAlt: {
+    color: "#111827",
+    fontWeight: "700",
+    fontSize: 13,
+  },
+  topBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 16,
+    marginBottom: 14,
+  },
+  utilityIcon: {
+    width: 38,
+    height: 38,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  searchShell: {
+    flex: 1,
+    height: 46,
+    borderWidth: 2,
+    borderColor: "#111827",
+    borderRadius: 12,
+    backgroundColor: "#ffffff",
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+  },
+  searchShellInput: {
+    flex: 1,
+    marginLeft: 8,
+    color: "#111827",
+    fontSize: 15,
+  },
   badge: {
     position: "absolute",
     top: -6,
@@ -221,12 +372,14 @@ const styles = StyleSheet.create({
   },
   safeArea: {
     flex: 1,
-    backgroundColor: "#fff7f8",
+    backgroundColor: "#ffffff",
   },
+
   container: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 32,
+    paddingTop:
+      Platform.OS === "android" ? (StatusBar.currentHeight || 0) + 12 : 14,
+    paddingBottom: 28,
+    backgroundColor: "#ffffff",
   },
   header: {
     flexDirection: "row",
@@ -252,20 +405,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  searchBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#ffffff",
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    height: 52,
-    marginBottom: 18,
-  },
-  input: {
-    flex: 1,
-    marginLeft: 8,
-    color: "#111827",
-  },
+
   heroCard: {
     backgroundColor: "#f9dbe4",
     borderRadius: 24,
@@ -321,6 +461,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 14,
+    paddingHorizontal: 16,
   },
   sectionTitle: {
     fontSize: 20,
@@ -333,7 +474,8 @@ const styles = StyleSheet.create({
     color: "#d96c8a",
   },
   categoryList: {
-    paddingBottom: 22,
+    paddingHorizontal: 16,
+    paddingBottom: 14,
   },
   categoryPill: {
     backgroundColor: "#ffffff",
@@ -358,6 +500,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
+    paddingHorizontal: 16,
   },
   productsEmpty: {
     backgroundColor: "#ffffff",

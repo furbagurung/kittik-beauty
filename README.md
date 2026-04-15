@@ -20,7 +20,7 @@ The Expo app currently supports:
 - signup and login against the backend
 - product listing and product detail screens
 - cart, wishlist, saved addresses, and persisted checkout details
-- authenticated order creation and order history
+- authenticated order creation, order history, and eligible order cancellation
 - cash on delivery checkout
 - eSewa payment initiation, in-app WebView handoff, callback handling, and verification
 
@@ -32,7 +32,7 @@ The Express app currently exposes:
 - customer signup and login
 - admin login, admin stats, recent orders, and user listing
 - product read routes plus create and update routes
-- authenticated order creation, listing, detail fetch, and admin status updates
+- inventory-aware order creation, customer cancellation, detail fetch, and admin status updates
 - eSewa initiate, redirect, callback, and verify routes
 
 ### Admin dashboard
@@ -111,6 +111,7 @@ Required eSewa config for backend payment flows:
 Important setup notes:
 
 - Prisma migrations read `DATABASE_URL` from [`prisma.config.ts`](./prisma.config.ts).
+- The backend now expects all listed `ESEWA_*` variables to be present at startup.
 - The runtime Prisma adapter in [`src/config/prisma.js`](./src/config/prisma.js) is still hardcoded to a local MariaDB instance.
 - The seed script in [`prisma/seed.js`](./prisma/seed.js) is also hardcoded to the same local MariaDB instance.
 - The mobile API base URL is currently hardcoded in [`services/api.ts`](./services/api.ts).
@@ -196,6 +197,7 @@ To use the admin dashboard end-to-end, you need a database user whose `role` is 
 - `GET /api/orders`
 - `GET /api/orders/:id`
 - `POST /api/orders`
+- `PATCH /api/orders/:id/cancel`
 - `POST /api/payments/esewa/initiate`
 - `POST /api/payments/esewa/verify`
 
@@ -211,13 +213,15 @@ To use the admin dashboard end-to-end, you need a database user whose `role` is 
 ### Cash on delivery
 
 1. The buyer app creates an order with `paymentMethod: "cod"`.
-2. The backend stores the order with status `placed`.
-3. The app clears the cart and routes to the success screen.
+2. The backend validates stock and decrements product inventory inside the order transaction.
+3. The backend stores the order with status `placed`.
+4. If the order is later cancelled, stock is restored once and `stockRestored` is marked on the order.
+5. The app clears the cart and routes to the success screen.
 
 ### eSewa
 
 1. The buyer app creates an order with `paymentMethod: "esewa"`.
-2. The backend stores the order with status `pending_payment`.
+2. The backend validates stock, decrements inventory, and stores the order with status `pending_payment`.
 3. The app calls `POST /api/payments/esewa/initiate`.
 4. The backend signs an eSewa payload and returns a backend-hosted redirect URL.
 5. [`app/payment-confirmation.tsx`](./app/payment-confirmation.tsx) opens that URL inside a `WebView`.
@@ -225,6 +229,7 @@ To use the admin dashboard end-to-end, you need a database user whose `role` is 
 7. eSewa returns through the backend callback route.
 8. The app intercepts the callback URL and calls `POST /api/payments/esewa/verify`.
 9. The backend verifies the callback payload and remote transaction status, then marks the order as `paid`.
+10. Failed or incomplete eSewa payments are marked as `payment_failed`, and reserved stock is restored.
 
 ### Khalti
 
@@ -251,6 +256,7 @@ postman/                Repo-local Postman collections and globals
 - The buyer app and admin app both use hardcoded API base URLs.
 - Prisma runtime configuration is split between `DATABASE_URL` and hardcoded adapter values.
 - Pending eSewa sessions are stored in memory and are lost on process restart.
+- The backend currently fails fast at startup if required `ESEWA_*` variables are missing.
 - Khalti is not implemented beyond placeholder client code.
 - Product create and update routes are not currently protected by auth middleware.
 - The admin product form exposes stock, status, and description fields, but the current backend product write handlers only persist `name`, `price`, `image`, and `category`.

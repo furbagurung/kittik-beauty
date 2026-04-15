@@ -1,7 +1,7 @@
 import { useWishlistStore } from "@/store/wishlistStore";
 import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
-import { StyleSheet, Text, View } from "react-native";
+import { Platform, StyleSheet, Text, View } from "react-native";
 
 export default function TabsLayout() {
   const wishlistCount = useWishlistStore((state) => state.items.length);
@@ -10,18 +10,25 @@ export default function TabsLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: "#d96c8a",
+        tabBarActiveTintColor: "#111827",
         tabBarInactiveTintColor: "#9ca3af",
         tabBarStyle: {
-          height: 72,
+          height: Platform.OS === "ios" ? 78 : 68,
           paddingTop: 8,
-          paddingBottom: 10,
-          borderTopWidth: 0,
+          paddingBottom: Platform.OS === "ios" ? 14 : 10,
+          borderTopWidth: 1,
+          borderTopColor: "#e5e7eb",
           backgroundColor: "#ffffff",
+          elevation: 0,
+          shadowOpacity: 0,
         },
         tabBarLabelStyle: {
-          fontSize: 12,
-          fontWeight: "600",
+          fontSize: 11,
+          fontWeight: "700",
+          marginTop: 2,
+        },
+        tabBarItemStyle: {
+          paddingVertical: 4,
         },
       }}
     >
@@ -29,8 +36,12 @@ export default function TabsLayout() {
         name="index"
         options={{
           title: "Home",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="home-outline" size={size} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons
+              name={focused ? "home" : "home-outline"}
+              size={22}
+              color={color}
+            />
           ),
         }}
       />
@@ -39,8 +50,12 @@ export default function TabsLayout() {
         name="categories"
         options={{
           title: "Categories",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="grid-outline" size={size} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons
+              name={focused ? "grid" : "grid-outline"}
+              size={22}
+              color={color}
+            />
           ),
         }}
       />
@@ -49,9 +64,13 @@ export default function TabsLayout() {
         name="wishlist"
         options={{
           title: "Wishlist",
-          tabBarIcon: ({ color, size }) => (
+          tabBarIcon: ({ color, focused }) => (
             <View style={styles.iconWrap}>
-              <Ionicons name="heart-outline" size={size} color={color} />
+              <Ionicons
+                name={focused ? "heart" : "heart-outline"}
+                size={22}
+                color={color}
+              />
               {wishlistCount > 0 && (
                 <View style={styles.badge}>
                   <Text style={styles.badgeText}>
@@ -68,8 +87,12 @@ export default function TabsLayout() {
         name="profile"
         options={{
           title: "Profile",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="person-outline" size={size} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons
+              name={focused ? "person" : "person-outline"}
+              size={22}
+              color={color}
+            />
           ),
         }}
       />
@@ -80,19 +103,19 @@ export default function TabsLayout() {
 const styles = StyleSheet.create({
   iconWrap: {
     position: "relative",
-    width: 26,
-    height: 26,
+    width: 28,
+    height: 28,
     alignItems: "center",
     justifyContent: "center",
   },
   badge: {
     position: "absolute",
-    top: -4,
-    right: -8,
+    top: -5,
+    right: -9,
     minWidth: 16,
     height: 16,
     borderRadius: 999,
-    backgroundColor: "#d96c8a",
+    backgroundColor: "#111827",
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 4,
