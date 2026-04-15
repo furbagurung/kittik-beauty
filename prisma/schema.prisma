@@ -11,18 +11,20 @@ model User {
   name      String
   email     String   @unique
   password  String
+  role      String   @default("customer")
   orders    Order[]
   createdAt DateTime @default(now())
 }
 
 model Product {
-  id        Int      @id @default(autoincrement())
-  name      String
-  price     Float
-  image     String
-  category  String
-  rating    Float    @default(0)
-  createdAt DateTime @default(now())
+  id          Int      @id @default(autoincrement())
+  name        String
+  description String?
+  price       Float
+  image       String?
+  category    String?
+  stock       Int      @default(0)
+  createdAt   DateTime @default(now())
 }
 
 model Order {
@@ -39,13 +41,14 @@ model Order {
   totalItems    Int
   status        String      @default("pending_payment")
   items         OrderItem[]
+  stockRestored Boolean     @default(false)
   createdAt     DateTime    @default(now())
 }
 
 model OrderItem {
-  id        Int     @id @default(autoincrement())
+  id        Int    @id @default(autoincrement())
   orderId   Int
-  order     Order   @relation(fields: [orderId], references: [id])
+  order     Order  @relation(fields: [orderId], references: [id])
   productId Int
   name      String
   price     Float

@@ -62,13 +62,54 @@ export default function CheckoutScreen() {
   const hydrated = useCartStore((state) => state.hydrated);
   const items = useCartStore((state) => state.items);
   const clearCart = useCartStore((state) => state.clearCart);
-
+  const setQty = useCartStore((state) => state.setQty);
+  const syncItemStock = useCartStore((state) => state.syncItemStock);
   const formatPrice = (value: number) =>
     new Intl.NumberFormat("en-NP", {
       style: "currency",
       currency: "NPR",
       maximumFractionDigits: 0,
     }).format(value);
+  useEffect(() => {
+    if (!hydrated || items.length === 0) return;
+
+    let isMounted = true;
+
+    async function syncCheckoutStock() {
+      try {
+        await Promise.all(
+          items.map(async (item) => {
+            try {
+              const latestProduct = await api.getProductById(item.id);
+
+              if (!isMounted) return;
+
+              const latestStock = latestProduct.stock ?? 0;
+
+              syncItemStock(String(item.id), latestStock);
+
+              if (latestStock > 0 && item.quantity > latestStock) {
+                setQty(String(item.id), latestStock);
+              }
+            } catch {
+              if (!isMounted) return;
+              syncItemStock(String(item.id), 0);
+            }
+          }),
+        );
+      } catch (error) {
+        console.log("Checkout stock sync error:", error);
+      }
+    }
+
+    syncCheckoutStock();
+
+    return () => {
+      isMounted = false;
+    };
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydrated, items.length]);
 
   if (!hydrated || !checkoutHydrated || !addressesHydrated) {
     return (
@@ -108,7 +149,11 @@ export default function CheckoutScreen() {
   const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
   const deliveryFee = 0;
   const total = subtotal + deliveryFee;
+  const invalidItems = items.filter(
+    (item) => item.stock <= 0 || item.quantity > item.stock,
+  );
 
+  const hasInvalidItems = invalidItems.length > 0;
   const nameError =
     touched.fullName && fullName.trim().length < 2
       ? "Please enter your full name."
@@ -191,7 +236,8 @@ export default function CheckoutScreen() {
       return;
     }
 
-    if (!items.length || !isFormValid || isSubmitting) return;
+    if (!items.length || !isFormValid || isSubmitting || hasInvalidItems)
+      return;
 
     if (isKhaltiSelected) {
       return;
@@ -268,14 +314,20 @@ export default function CheckoutScreen() {
   const isKhaltiSelected = paymentMethod === "khalti";
 
   const isCheckoutDisabled =
-    !items.length || !isFormValid || isSubmitting || isKhaltiSelected;
+    !items.length ||
+    !isFormValid ||
+    isSubmitting ||
+    isKhaltiSelected ||
+    hasInvalidItems;
   const checkoutButtonText = !user
     ? "Login to Continue"
-    : isKhaltiSelected
-      ? "Khalti Coming Soon"
-      : isEsewaSelected
-        ? "Pay with eSewa"
-        : "Place Order";
+    : hasInvalidItems
+      ? "Fix Cart to Continue"
+      : isKhaltiSelected
+        ? "Khalti Coming Soon"
+        : isEsewaSelected
+          ? "Pay with eSewa"
+          : "Place Order";
   return (
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView
@@ -324,6 +376,17 @@ export default function CheckoutScreen() {
             </View>
           ) : (
             <>
+              {hasInvalidItems && (
+                <View style={styles.stockAlertCard}>
+                  <Text style={styles.stockAlertTitle}>
+                    Cart needs attention
+                  </Text>
+                  <Text style={styles.stockAlertText}>
+                    Some items are out of stock or exceed available quantity.
+                    Please review your cart before placing the order.
+                  </Text>
+                </View>
+              )}
               {!user && (
                 <View style={styles.guestNotice}>
                   <Text style={styles.guestNoticeTitle}>
@@ -630,7 +693,22 @@ export default function CheckoutScreen() {
                     <Text style={styles.summaryLabel}>Total Items</Text>
                     <Text style={styles.summaryValue}>{totalItems}</Text>
                   </View>
-
+                  {hasInvalidItems && (
+                    <View style={styles.stockIssueList}>
+                      {invalidItems.map((item) => (
+                        <View key={item.id} style={styles.stockIssueRow}>
+                          <Text style={styles.stockIssueName} numberOfLines={1}>
+                            {item.name}
+                          </Text>
+                          <Text style={styles.stockIssueText}>
+                            {item.stock <= 0
+                              ? "Out of stock"
+                              : `Only ${item.stock} available, but cart has ${item.quantity}`}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  )}
                   <View style={styles.summaryRow}>
                     <Text style={styles.summaryLabel}>Subtotal</Text>
                     <Text style={styles.summaryValue}>
@@ -706,6 +784,53 @@ export default function CheckoutScreen() {
 }
 
 const styles = StyleSheet.create({
+  stockAlertCard: {
+    backgroundColor: "#fff7ed",
+    borderWidth: 1,
+    borderColor: "#fdba74",
+    borderRadius: 18,
+    padding: 14,
+    marginBottom: 14,
+  },
+
+  stockAlertTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#9a3412",
+    marginBottom: 6,
+  },
+
+  stockAlertText: {
+    fontSize: 13,
+    lineHeight: 20,
+    color: "#7c2d12",
+  },
+
+  stockIssueList: {
+    marginTop: 12,
+    gap: 10,
+  },
+
+  stockIssueRow: {
+    backgroundColor: "#fff7f8",
+    borderWidth: 1,
+    borderColor: "#f0d7df",
+    borderRadius: 14,
+    padding: 12,
+  },
+
+  stockIssueName: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#111827",
+    marginBottom: 4,
+  },
+
+  stockIssueText: {
+    fontSize: 12,
+    color: "#b45309",
+    fontWeight: "600",
+  },
   flex: {
     flex: 1,
   },

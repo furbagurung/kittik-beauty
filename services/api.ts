@@ -125,7 +125,12 @@ export const api = {
       body: JSON.stringify(body),
     });
   },
-
+  cancelOwnOrder: (token: string, id: string | number) => {
+    return request<any>(`/orders/${id}/cancel`, {
+      method: "PATCH",
+      token,
+    });
+  },
   updateOrderStatus: (token: string, id: string | number, status: string) => {
     return request<any>(`/orders/${id}/status`, {
       method: "PATCH",

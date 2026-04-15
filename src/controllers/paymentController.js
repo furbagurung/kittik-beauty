@@ -1,22 +1,23 @@
 import crypto from "crypto";
 import { Buffer } from "node:buffer";
 import { prisma } from "../config/prisma.js";
+import { restoreOrderStock } from "../utils/inventory.js";
 
-const ESEWA_FORM_URL =
-  process.env.ESEWA_FORM_URL ||
-  "https://rc-epay.esewa.com.np/api/epay/main/v2/form";
-const ESEWA_PRODUCT_CODE = process.env.ESEWA_PRODUCT_CODE || "EPAYTEST";
-const ESEWA_SECRET_KEY = process.env.ESEWA_SECRET_KEY || "8gBm/:&EnhH.1/q";
-const ESEWA_STATUS_CHECK_URL =
-  process.env.ESEWA_STATUS_CHECK_URL ||
-  "https://rc.esewa.com.np/api/epay/transaction/status/";
-const ESEWA_APP_REDIRECT_URL =
-  process.env.ESEWA_APP_REDIRECT_URL ||
-  "kittikbeauty://payment-confirmation";
-const ESEWA_WEB_SUCCESS_URL =
-  process.env.ESEWA_WEB_SUCCESS_URL || "https://developer.esewa.com.np/success";
-const ESEWA_WEB_FAILURE_URL =
-  process.env.ESEWA_WEB_FAILURE_URL || "https://developer.esewa.com.np/failure";
+function readRequiredEnv(name) {
+  const value = process.env[name]?.trim();
+
+  if (!value) {
+    throw new Error(`Missing required environment variable: ${name}`);
+  }
+
+  return value;
+}
+
+const ESEWA_FORM_URL = readRequiredEnv("ESEWA_FORM_URL");
+const ESEWA_PRODUCT_CODE = readRequiredEnv("ESEWA_PRODUCT_CODE");
+const ESEWA_SECRET_KEY = readRequiredEnv("ESEWA_SECRET_KEY");
+const ESEWA_STATUS_CHECK_URL = readRequiredEnv("ESEWA_STATUS_CHECK_URL");
+const ESEWA_APP_REDIRECT_URL = readRequiredEnv("ESEWA_APP_REDIRECT_URL");
 const pendingEsewaSessions = new Map();
 
 function escapeHtml(value) {
@@ -49,16 +50,6 @@ function getRequestOrigin(req) {
   const host = forwardedHost || req.get("host");
 
   return `${protocol}://${host}`;
-}
-
-function buildEsewaWebReturnUrl(baseUrl, status, orderId, transactionUuid) {
-  const redirectUrl = new URL(baseUrl);
-
-  redirectUrl.searchParams.set("status", status);
-  redirectUrl.searchParams.set("orderId", String(orderId));
-  redirectUrl.searchParams.set("transaction_uuid", transactionUuid);
-
-  return redirectUrl.toString();
 }
 
 function createEsewaSignature(message) {
@@ -160,6 +151,28 @@ async function fetchEsewaStatus(totalAmount, transactionUuid) {
   }
 
   return normalizeEsewaStatusResponse(await response.json());
+}
+async function markEsewaPaymentFailed(orderId) {
+  await prisma.$transaction(async (tx) => {
+    const existingOrder = await tx.order.findUnique({
+      where: { id: Number(orderId) },
+    });
+
+    if (!existingOrder) {
+      throw new Error("Order not found");
+    }
+
+    if (existingOrder.status === "paid") {
+      return;
+    }
+
+    await tx.order.update({
+      where: { id: Number(orderId) },
+      data: { status: "payment_failed" },
+    });
+
+    await restoreOrderStock(orderId, "payment_failed", tx);
+  });
 }
 
 export async function initiateEsewaPayment(req, res) {
@@ -365,7 +378,31 @@ export async function renderEsewaPaymentPage(req, res) {
     </html>
   `);
 }
+function parseEsewaCallbackQuery(query) {
+  const rawStatus = String(query?.status || "");
+  const directData = typeof query?.data === "string" ? query.data : "";
 
+  if (directData) {
+    return {
+      status: rawStatus.toLowerCase() === "success" ? "success" : "failure",
+      data: directData,
+    };
+  }
+
+  if (rawStatus.includes("?data=")) {
+    const [statusPart, dataPart] = rawStatus.split("?data=");
+
+    return {
+      status: statusPart.toLowerCase() === "success" ? "success" : "failure",
+      data: dataPart || "",
+    };
+  }
+
+  return {
+    status: rawStatus.toLowerCase() === "success" ? "success" : "failure",
+    data: "",
+  };
+}
 export async function handleEsewaCallback(req, res) {
   console.log("ESEWA CALLBACK HIT", {
     method: req.method,
@@ -379,19 +416,10 @@ export async function handleEsewaCallback(req, res) {
       contentType: req.get("content-type"),
     },
   });
+
   const { transactionUuid } = req.params;
   const session = pendingEsewaSessions.get(transactionUuid);
-  if (typeof req.query.reason === "string" && req.query.reason) {
-    const appRedirect = new URL(appRedirectUrl);
-    appRedirect.searchParams.set("reason", req.query.reason);
-    appRedirectUrl = appRedirect.toString();
-  }
 
-  if (typeof req.query.message === "string" && req.query.message) {
-    const appRedirect = new URL(appRedirectUrl);
-    appRedirect.searchParams.set("message", req.query.message);
-    appRedirectUrl = appRedirect.toString();
-  }
   if (!session) {
     return res.status(404).send(`
       <html>
@@ -403,24 +431,50 @@ export async function handleEsewaCallback(req, res) {
     `);
   }
 
-  const requestedStatus = String(req.query.status || "").toLowerCase();
-  const normalizedStatus =
-    requestedStatus === "success" ? "success" : "failure";
+  const parsedCallback = parseEsewaCallbackQuery(req.query);
+  const normalizedStatus = parsedCallback.status;
+
   let appRedirectUrl = buildAppRedirectUrl(
     session.appRedirectUrl,
     normalizedStatus,
     session.orderId,
     transactionUuid,
   );
-  if (typeof req.query.data === "string" && req.query.data) {
+
+  if (parsedCallback.data) {
     const appRedirect = new URL(appRedirectUrl);
-    appRedirect.searchParams.set("data", req.query.data);
+    appRedirect.searchParams.set("data", parsedCallback.data);
     appRedirectUrl = appRedirect.toString();
   }
+
+  if (typeof req.query.reason === "string" && req.query.reason) {
+    const appRedirect = new URL(appRedirectUrl);
+    appRedirect.searchParams.set("reason", req.query.reason);
+    appRedirectUrl = appRedirect.toString();
+  }
+
+  if (typeof req.query.message === "string" && req.query.message) {
+    const appRedirect = new URL(appRedirectUrl);
+    appRedirect.searchParams.set("message", req.query.message);
+    appRedirectUrl = appRedirect.toString();
+  }
+
+  if (normalizedStatus === "failure") {
+    try {
+      await markEsewaPaymentFailed(Number(session.orderId));
+    } catch (error) {
+      console.log(
+        "Failed to mark eSewa payment as failed from callback:",
+        error,
+      );
+    }
+  }
+
   const title =
     normalizedStatus === "success"
       ? "Returning to Kittik Beauty"
       : "Payment update ready";
+
   const message =
     normalizedStatus === "success"
       ? "Your payment is complete. If the app does not resume automatically, use the button below."
@@ -489,7 +543,6 @@ export async function handleEsewaCallback(req, res) {
     </html>
   `);
 }
-
 export async function verifyEsewaPayment(req, res) {
   try {
     console.log("ESEWA VERIFY REQUEST", {
@@ -541,6 +594,32 @@ export async function verifyEsewaPayment(req, res) {
 
     const decodedPayload = decodeEsewaCallbackData(callbackData);
     console.log("ESEWA DECODED PAYLOAD", decodedPayload);
+    function parseEsewaCallbackQuery(query) {
+      const rawStatus = String(query?.status || "");
+      const directData = typeof query?.data === "string" ? query.data : "";
+
+      if (directData) {
+        return {
+          status: rawStatus.toLowerCase() === "success" ? "success" : "failure",
+          data: directData,
+        };
+      }
+
+      if (rawStatus.includes("?data=")) {
+        const [statusPart, dataPart] = rawStatus.split("?data=");
+
+        return {
+          status:
+            statusPart.toLowerCase() === "success" ? "success" : "failure",
+          data: dataPart || "",
+        };
+      }
+
+      return {
+        status: rawStatus.toLowerCase() === "success" ? "success" : "failure",
+        data: "",
+      };
+    }
     if (callbackData && !decodedPayload) {
       return res.status(400).json({
         success: false,
@@ -607,6 +686,8 @@ export async function verifyEsewaPayment(req, res) {
       decodedPayload &&
       String(decodedPayload.status || "").toUpperCase() !== "COMPLETE"
     ) {
+      await markEsewaPaymentFailed(order.id);
+
       return res.json({
         success: false,
         status: String(decodedPayload.status || "FAILED").toUpperCase(),
@@ -650,13 +731,14 @@ export async function verifyEsewaPayment(req, res) {
     }
 
     if (statusResult.status !== "COMPLETE") {
+      await markEsewaPaymentFailed(order.id);
+
       return res.json({
         success: false,
         status: statusResult.status || "FAILED",
         message: "eSewa payment is not complete yet",
       });
     }
-
     await prisma.order.update({
       where: { id: order.id },
       data: { status: "paid" },

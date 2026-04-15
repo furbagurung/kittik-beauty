@@ -1,92 +1,130 @@
 # Architecture
 
-This document describes the current Kittik Beauty architecture across the buyer-facing Expo app, the Express backend, and the repo-local API workspace assets.
+This document describes the current Kittik Beauty architecture across the Expo buyer app, the Express API, the Prisma data layer, and the separate Next.js admin dashboard.
 
-## 1. System Shape
+## 1. Runtime Topology
 
-Kittik Beauty now has two main runtime layers:
+Kittik Beauty currently runs as four connected parts:
 
-- a buyer mobile app in `app/`, `components/`, `services/`, `store/`, and `utils/`
-- an Express backend in `src/` that serves auth, products, orders, and payment routes
+1. a buyer-facing Expo app in the repository root
+2. an Express API in [`src/`](../src)
+3. a MariaDB / MySQL database accessed through Prisma
+4. an admin dashboard in [`admin/`](../admin)
 
-The repository also includes a repo-local Postman workspace in `.postman/` and `postman/` for API testing.
+The repository also includes a repo-local Postman workspace in [`.postman/`](../.postman) and [`postman/`](../postman).
 
-At a high level:
+## 2. Buyer App Architecture
 
-- `app/` owns buyer routes and screen-level UI
-- `components/` owns reusable UI and motion primitives
-- `services/api.ts` is the frontend HTTP entry point
-- `services/payments/` contains payment-provider adapters used by checkout
-- `store/` contains client state and persistence
-- `src/routes/` mounts backend endpoints
-- `src/controllers/` implements backend request handling
+### Navigation
 
-## 2. Frontend Navigation
+The root stack is defined in [`app/_layout.tsx`](../app/_layout.tsx). The main route groups are:
 
-### Root layout
+- [`app/(tabs)/index.tsx`](../app/%28tabs%29/index.tsx): home discovery screen
+- [`app/(tabs)/categories.tsx`](../app/%28tabs%29/categories.tsx): category browsing
+- [`app/(tabs)/wishlist.tsx`](../app/%28tabs%29/wishlist.tsx): persisted wishlist
+- [`app/(tabs)/profile.tsx`](../app/%28tabs%29/profile.tsx): account summary and order count
+- [`app/login.tsx`](../app/login.tsx): customer login
+- [`app/signup.tsx`](../app/signup.tsx): customer signup
+- [`app/products.tsx`](../app/products.tsx): catalog screen with search and sort
+- [`app/product/[id].tsx`](../app/product/%5Bid%5D.tsx): product detail
+- [`app/cart.tsx`](../app/cart.tsx): cart review
+- [`app/checkout.tsx`](../app/checkout.tsx): checkout form and order creation
+- [`app/payment-confirmation.tsx`](../app/payment-confirmation.tsx): in-app eSewa WebView flow
+- [`app/orders.tsx`](../app/orders.tsx): authenticated order list
+- [`app/order/[id].tsx`](../app/order/%5Bid%5D.tsx): authenticated order detail
+- [`app/order-success.tsx`](../app/order-success.tsx): post-checkout success screen
 
-The root stack is defined in [app/_layout.tsx](/d:/Development/kittik-beauty/app/_layout.tsx).
+### Client service layer
 
-It mounts:
+[`services/api.ts`](../services/api.ts) is the shared HTTP entry point for the buyer app. It wraps:
 
-- tab shell
-- cart
-- checkout
-- orders
-- order detail
-- product detail
-- payment confirmation
-- order success
+- auth requests
+- product reads
+- order reads and creation
+- order status updates
+- eSewa payment initiate and verify calls
 
-There is no admin route group mounted in the current app shell.
+[`services/payments/paymentClient.ts`](../services/payments/paymentClient.ts) normalizes payment initiation and verification across providers.
 
-### Main shopper routes
+Provider-specific modules:
 
-- [app/(tabs)/index.tsx](/d:/Development/kittik-beauty/app/(tabs)/index.tsx)  
-  Home discovery screen.
+- [`services/payments/esewa.ts`](../services/payments/esewa.ts)
+- [`services/payments/khalti.ts`](../services/payments/khalti.ts)
 
-- [app/products.tsx](/d:/Development/kittik-beauty/app/products.tsx)  
-  Full catalog screen.
+### Client state
 
-- [app/product/[id].tsx](/d:/Development/kittik-beauty/app/product/[id].tsx)  
-  Product detail screen with:
-  - API-backed product fetch
-  - image carousel
-  - fullscreen gallery
-  - related product strip
-  - add-to-cart and buy-now actions
+The buyer app uses focused Zustand stores:
 
-- [app/cart.tsx](/d:/Development/kittik-beauty/app/cart.tsx)  
-  Cart review and quantity management.
+- [`store/authStore.ts`](../store/authStore.ts): persisted auth session
+- [`store/cartStore.ts`](../store/cartStore.ts): persisted cart
+- [`store/wishlistStore.ts`](../store/wishlistStore.ts): persisted wishlist
+- [`store/addressStore.ts`](../store/addressStore.ts): saved addresses
+- [`store/checkoutStore.ts`](../store/checkoutStore.ts): saved checkout details
+- [`store/paymentSessionStore.ts`](../store/paymentSessionStore.ts): in-memory payment session payload
+- [`store/orderStore.ts`](../store/orderStore.ts): legacy local order store
 
-- [app/checkout.tsx](/d:/Development/kittik-beauty/app/checkout.tsx)  
-  Checkout form, saved addresses, payment selection, backend order creation, and payment session setup.
+The active buyer flow now uses backend order APIs instead of `store/orderStore.ts` as the main source of truth.
 
-- [app/payment-confirmation.tsx](/d:/Development/kittik-beauty/app/payment-confirmation.tsx)  
-  In-app eSewa payment surface implemented with `react-native-webview`.
+## 3. Admin Dashboard Architecture
 
-- [app/orders.tsx](/d:/Development/kittik-beauty/app/orders.tsx)  
-  Backend-backed order history.
+The admin dashboard is a separate Next.js App Router app under [`admin/`](../admin).
 
-- [app/order/[id].tsx](/d:/Development/kittik-beauty/app/order/[id].tsx)  
-  Backend-backed order detail.
+### Main routes
 
-- [app/(tabs)/profile.tsx](/d:/Development/kittik-beauty/app/(tabs)/profile.tsx)  
-  Profile summary that now fetches order count from the backend instead of relying on the local order store.
+- [`admin/app/(auth)/login/page.tsx`](../admin/app/%28auth%29/login/page.tsx): admin login
+- [`admin/app/(dashboard)/page.tsx`](../admin/app/%28dashboard%29/page.tsx): stats and recent orders
+- [`admin/app/(dashboard)/products/page.tsx`](../admin/app/%28dashboard%29/products/page.tsx): product list
+- [`admin/app/(dashboard)/products/new/page.tsx`](../admin/app/%28dashboard%29/products/new/page.tsx): create product
+- [`admin/app/(dashboard)/products/[id]/page.tsx`](../admin/app/%28dashboard%29/products/%5Bid%5D/page.tsx): edit product
+- [`admin/app/(dashboard)/orders/page.tsx`](../admin/app/%28dashboard%29/orders/page.tsx): order list
+- [`admin/app/(dashboard)/orders/[id]/page.tsx`](../admin/app/%28dashboard%29/orders/%5Bid%5D/page.tsx): order detail and status update
+- [`admin/app/(dashboard)/customers/page.tsx`](../admin/app/%28dashboard%29/customers/page.tsx): user list
+- [`admin/app/(dashboard)/settings/page.tsx`](../admin/app/%28dashboard%29/settings/page.tsx): placeholder settings UI
 
-## 3. Backend Architecture
+### Admin shell and auth model
+
+[`admin/components/layout/AdminShell.tsx`](../admin/components/layout/AdminShell.tsx) performs a lightweight client-side access check by looking for `adminToken` in `localStorage`. If no token is present, it redirects to `/login`.
+
+This is only a client-side guard. Backend enforcement still comes from JWT validation and the `isAdmin` middleware on protected routes.
+
+### Admin API client
+
+[`admin/lib/api.ts`](../admin/lib/api.ts) talks directly to the backend API and currently handles:
+
+- admin login
+- dashboard stats
+- recent orders
+- user listing
+- order listing and detail fetch
+- order status updates
+- product fetch, create, and update
+
+The admin API base URL is currently hardcoded to `http://localhost:5000/api`.
+
+## 4. Backend Architecture
 
 ### Entry points
 
-- [src/server.js](/d:/Development/kittik-beauty/src/server.js)  
-  Connects Prisma and starts the HTTP server.
+- [`src/server.js`](../src/server.js): loads env, connects Prisma, and starts the server
+- [`src/app.js`](../src/app.js): configures CORS, JSON parsing, health routes, mounted route groups, and the 404 handler
 
-- [src/app.js](/d:/Development/kittik-beauty/src/app.js)  
-  Configures CORS, `express.json()`, health routes, route mounting, and the 404 handler.
+### Middleware
 
-### Mounted route groups
+- [`src/middleware/authMiddleware.js`](../src/middleware/authMiddleware.js)
 
-From [src/app.js](/d:/Development/kittik-beauty/src/app.js:1):
+This module provides:
+
+- `protect`: validates `Authorization: Bearer <token>`
+- `isAdmin`: checks for `req.user.role === "admin"`
+
+JWTs are created in [`src/utils/generateToken.js`](../src/utils/generateToken.js) and currently include only:
+
+- `id`
+- `role`
+
+### Route groups
+
+Mounted route groups from [`src/app.js`](../src/app.js):
 
 - `GET /api/health`
 - `/api/auth`
@@ -94,205 +132,88 @@ From [src/app.js](/d:/Development/kittik-beauty/src/app.js:1):
 - `/api/orders`
 - `/api/payments`
 
-### Route modules
+#### Auth routes
 
-- [src/routes/authRoutes.js](/d:/Development/kittik-beauty/src/routes/authRoutes.js)
-- [src/routes/productRoutes.js](/d:/Development/kittik-beauty/src/routes/productRoutes.js)
-- [src/routes/orderRoutes.js](/d:/Development/kittik-beauty/src/routes/orderRoutes.js)
-- [src/routes/paymentRoutes.js](/d:/Development/kittik-beauty/src/routes/paymentRoutes.js)
+[`src/routes/authRoutes.js`](../src/routes/authRoutes.js) currently exposes:
 
-### Payment routes
+- `POST /api/auth/signup`
+- `POST /api/auth/login`
+- `POST /api/auth/admin/login`
+- `GET /api/auth/users`
+- `GET /api/auth/admin/stats`
+- `GET /api/auth/admin/recent-orders`
 
-[src/routes/paymentRoutes.js](/d:/Development/kittik-beauty/src/routes/paymentRoutes.js) currently exposes:
+#### Product routes
+
+[`src/routes/productRoutes.js`](../src/routes/productRoutes.js) currently exposes:
+
+- `GET /api/products`
+- `GET /api/products/:id`
+- `POST /api/products`
+- `PUT /api/products/:id`
+
+The write routes are not currently wrapped in `protect` or `isAdmin`.
+
+#### Order routes
+
+[`src/routes/orderRoutes.js`](../src/routes/orderRoutes.js) applies `protect` to the entire router, then exposes:
+
+- `POST /api/orders`
+- `GET /api/orders`
+- `GET /api/orders/:id`
+- `PATCH /api/orders/:id/status`
+
+`PATCH /api/orders/:id/status` additionally requires `isAdmin`.
+
+#### Payment routes
+
+[`src/routes/paymentRoutes.js`](../src/routes/paymentRoutes.js) currently exposes:
 
 - `POST /api/payments/esewa/initiate`
 - `GET /api/payments/esewa/redirect/:transactionUuid`
 - `ALL /api/payments/esewa/callback/:transactionUuid`
 - `POST /api/payments/esewa/verify`
 
-### Payment controller responsibilities
+Both `initiate` and `verify` require `protect`.
 
-[src/controllers/paymentController.js](/d:/Development/kittik-beauty/src/controllers/paymentController.js) currently:
+## 5. Data Model
 
-- builds a signed eSewa form payload on the backend
-- stores a short-lived pending payment session in memory
-- serves an HTML page that auto-submits the payment form to eSewa using `POST`
-- serves a backend callback page that redirects back into the app
-- validates the callback signature and amount/product metadata
-- confirms the transaction with the eSewa status API
-- marks the order as `paid` after successful verification
+The Prisma schema lives in [`prisma/schema.prisma`](../prisma/schema.prisma).
 
-## 4. Frontend Service Layer
+### User
 
-### Shared API client
-
-[services/api.ts](/d:/Development/kittik-beauty/services/api.ts) is the shared frontend HTTP layer.
-
-It currently wraps:
-
-- `getProducts`
-- `getProductById`
-- `signup`
-- `login`
-- `getOrders`
-- `getOrderById`
-- `createOrder`
-- `updateOrderStatus`
-- `initiateEsewaPayment`
-- `verifyEsewaPayment`
-
-This file is also where the frontend API base URL is currently defined.
-
-Protected frontend calls:
-
-- all order calls send a bearer token
-- eSewa initiate and verify also send a bearer token
-
-### Payment service design
-
-[services/payments/paymentClient.ts](/d:/Development/kittik-beauty/services/payments/paymentClient.ts) is the normalized payment entry point.
-
-Responsibilities:
-
-- chooses the provider module by payment method
-- returns normalized initiation and verification results
-
-Provider adapters:
-
-- [services/payments/esewa.ts](/d:/Development/kittik-beauty/services/payments/esewa.ts)
-- [services/payments/khalti.ts](/d:/Development/kittik-beauty/services/payments/khalti.ts)
-
-Shared payment types:
-
-- [services/payments/paymentTypes.ts](/d:/Development/kittik-beauty/services/payments/paymentTypes.ts)
-
-## 5. State Management
-
-The client uses focused Zustand stores.
-
-### Active stores in the main buyer flow
-
-- [store/authStore.ts](/d:/Development/kittik-beauty/store/authStore.ts)  
-  Persists backend auth session and token.
-
-- [store/cartStore.ts](/d:/Development/kittik-beauty/store/cartStore.ts)  
-  Persists cart items and quantity changes.
-
-- [store/wishlistStore.ts](/d:/Development/kittik-beauty/store/wishlistStore.ts)  
-  Persists saved products.
-
-- [store/addressStore.ts](/d:/Development/kittik-beauty/store/addressStore.ts)  
-  Persists saved delivery addresses.
-
-- [store/checkoutStore.ts](/d:/Development/kittik-beauty/store/checkoutStore.ts)  
-  Persists last-used checkout form details.
-
-- [store/paymentSessionStore.ts](/d:/Development/kittik-beauty/store/paymentSessionStore.ts)  
-  Holds temporary payment context such as `orderId`, `redirectUrl`, `paymentId`, and provider reference between checkout and payment completion.
-
-### Legacy store
-
-- [store/orderStore.ts](/d:/Development/kittik-beauty/store/orderStore.ts)  
-  Still exists, but the main order list and detail screens now use backend APIs rather than this store as the source of truth.
-
-## 6. Buyer Flow
-
-### Product to cart
-
-1. Product cards route to [app/product/[id].tsx](/d:/Development/kittik-beauty/app/product/[id].tsx).
-2. Product detail fetches the product from the backend.
-3. Users can add to cart or use buy now to go straight to checkout.
-
-### COD flow
-
-1. Checkout validates name, phone, and address.
-2. Checkout calls `POST /api/orders`.
-3. The backend stores the order with status `placed`.
-4. Checkout details are persisted locally.
-5. Cart is cleared.
-6. The app routes to [app/order-success.tsx](/d:/Development/kittik-beauty/app/order-success.tsx) with the new `orderId`.
-
-### eSewa flow
-
-1. Checkout calls `POST /api/orders`.
-2. The backend stores the order with status `pending_payment`.
-3. Checkout calls `initiatePayment()` for `esewa`.
-4. [services/payments/esewa.ts](/d:/Development/kittik-beauty/services/payments/esewa.ts) calls `POST /api/payments/esewa/initiate`.
-5. The backend returns a `redirectUrl` pointing back to its own redirect page.
-6. Checkout stores the payment session in [store/paymentSessionStore.ts](/d:/Development/kittik-beauty/store/paymentSessionStore.ts).
-7. The app routes to [app/payment-confirmation.tsx](/d:/Development/kittik-beauty/app/payment-confirmation.tsx).
-8. The payment screen loads the backend redirect page in a WebView.
-9. The backend redirect page auto-submits a `POST` form to `https://rc-epay.esewa.com.np/api/epay/main/v2/form`.
-10. eSewa returns through the backend callback route, which redirects into the app with `status`, `orderId`, `transaction_uuid`, and callback `data`.
-11. The WebView intercepts that callback URL.
-12. The app calls `POST /api/payments/esewa/verify`.
-13. The backend verifies the callback signature, checks the remote transaction status, updates the order to `paid`, and returns a normalized result.
-14. The app clears the cart, clears the payment session, and routes to success.
-
-### Khalti flow
-
-- Khalti is still represented in the checkout UI.
-- The current production path is not implemented end-to-end yet.
-- There is no matching backend Khalti route set at this stage.
-
-## 7. Payment Confirmation Screen Design
-
-[app/payment-confirmation.tsx](/d:/Development/kittik-beauty/app/payment-confirmation.tsx) now acts as:
-
-- an in-app payment container
-- a WebView host for the backend redirect page
-- a callback interceptor using `onShouldStartLoadWithRequest`
-- the place where frontend payment verification is triggered after the backend callback redirects back into the app
-
-This replaced the earlier manual demo confirm step.
-
-## 8. API Workspace
-
-The repository includes a Postman Local View setup:
-
-- [.postman/resources.yaml](/d:/Development/kittik-beauty/.postman/resources.yaml)
-- [postman/globals/workspace.globals.yaml](/d:/Development/kittik-beauty/postman/globals/workspace.globals.yaml)
-- request files under `postman/collections/Kittik Beauty API/`
-
-Current committed request groups:
-
-- Health
-- Auth
-- Products
-- Orders
-
-Current setup assumptions:
-
-- define `baseUrl` locally, for example `http://localhost:5000/api`
-- define `authToken` locally before running protected order requests
-- payment endpoints exist in the backend, but matching Postman request files are not committed yet
-
-## 9. Domain Model
-
-### Product
-
-Defined in [types/product.ts](/d:/Development/kittik-beauty/types/product.ts).
-
-Main fields include:
+Current user fields include:
 
 - `id`
 - `name`
+- `email`
+- `password`
+- `role`
+- `createdAt`
+
+`role` defaults to `customer` and is used by admin authorization checks.
+
+### Product
+
+Current product fields in the schema include:
+
+- `id`
+- `name`
+- `description`
 - `price`
 - `image`
-- `images`
 - `category`
-- `rating`
-- `description`
 - `stock`
+- `createdAt`
+
+The mobile UI and seed data also expect an optional `rating` field when present.
 
 ### Order
 
-Defined in [types/order.ts](/d:/Development/kittik-beauty/types/order.ts).
-
-Main fields include:
+Current order fields include:
 
 - `id`
-- `items`
+- `userId`
 - `fullName`
 - `phone`
 - `address`
@@ -304,45 +225,110 @@ Main fields include:
 - `status`
 - `createdAt`
 
-Order statuses currently used:
+### OrderItem
 
-- `pending_payment`
-- `paid`
-- `placed`
-- `processing`
-- `delivered`
+Current order item fields include:
 
-## 10. Current Boundaries
+- `id`
+- `orderId`
+- `productId`
+- `name`
+- `price`
+- `quantity`
 
-The codebase is more complete than the earlier prototype, but a few intentional gaps remain:
+## 6. Buyer Flow
 
-- Khalti is not integrated end-to-end yet
-- `paymentSessionStore` is still in-memory only
-- pending backend eSewa sessions are also kept in process memory with no expiry/persistence layer
-- `store/orderStore.ts` is now secondary to the backend order APIs
-- the frontend API base URL is still hardcoded
-- the committed Postman workspace does not cover payment endpoints yet
+### Auth
 
-## 11. Recommended Next Steps
+1. The mobile app calls `signup` or `login`.
+2. The backend returns a JWT and basic user payload.
+3. [`store/authStore.ts`](../store/authStore.ts) persists the session for later requests.
 
-- add backend Khalti initiation and verification routes
-- add Postman request files for the payment routes
-- add expiry or persistence for pending backend eSewa sessions
-- move API and payment config to environment-based frontend configuration
-- remove or refactor the legacy local order store
-- add automated tests around checkout, payment callbacks, and backend payment routes
+### Product browsing
 
-## 12. Suggested Reading Order
+1. The mobile app calls `GET /api/products` or `GET /api/products/:id`.
+2. The product detail screen supports add-to-cart, buy-now, and related-product UI.
 
-For a practical walkthrough, read in this order:
+### Order creation
 
-1. [README.md](/d:/Development/kittik-beauty/README.md)
-2. [app/_layout.tsx](/d:/Development/kittik-beauty/app/_layout.tsx)
-3. [services/api.ts](/d:/Development/kittik-beauty/services/api.ts)
-4. [app/product/[id].tsx](/d:/Development/kittik-beauty/app/product/[id].tsx)
-5. [app/cart.tsx](/d:/Development/kittik-beauty/app/cart.tsx)
-6. [app/checkout.tsx](/d:/Development/kittik-beauty/app/checkout.tsx)
-7. [app/payment-confirmation.tsx](/d:/Development/kittik-beauty/app/payment-confirmation.tsx)
-8. [src/app.js](/d:/Development/kittik-beauty/src/app.js)
-9. [src/routes/paymentRoutes.js](/d:/Development/kittik-beauty/src/routes/paymentRoutes.js)
-10. [src/controllers/paymentController.js](/d:/Development/kittik-beauty/src/controllers/paymentController.js)
+1. Checkout collects customer details, addresses, and payment method.
+2. The app calls `POST /api/orders`.
+3. The backend creates the order and nested `OrderItem` records.
+4. COD orders default to `placed`; online-payment orders default to `pending_payment`.
+
+## 7. Payment Architecture
+
+### eSewa
+
+The current eSewa implementation spans:
+
+- buyer checkout in [`app/checkout.tsx`](../app/checkout.tsx)
+- payment session state in [`store/paymentSessionStore.ts`](../store/paymentSessionStore.ts)
+- provider adapter in [`services/payments/esewa.ts`](../services/payments/esewa.ts)
+- WebView host in [`app/payment-confirmation.tsx`](../app/payment-confirmation.tsx)
+- backend controller in [`src/controllers/paymentController.js`](../src/controllers/paymentController.js)
+
+Flow summary:
+
+1. The app creates an order.
+2. The backend signs an eSewa form payload.
+3. The backend stores a pending session in an in-memory `Map`.
+4. The app opens the backend redirect page inside a `WebView`.
+5. The backend redirect page auto-submits a `POST` form to eSewa.
+6. eSewa returns through the backend callback route.
+7. The app calls the verify route with callback payload data.
+8. The backend verifies signature, amount, product code, and remote status.
+9. The backend updates the order to `paid`.
+
+### Khalti
+
+Khalti is currently only represented by placeholder client functions in [`services/payments/khalti.ts`](../services/payments/khalti.ts). There is no backend Khalti route set or real verification flow yet.
+
+## 8. Configuration
+
+### Environment-backed configuration
+
+Current environment-backed settings include:
+
+- `DATABASE_URL` via [`prisma.config.ts`](../prisma.config.ts)
+- `JWT_SECRET`
+- the optional `ESEWA_*` overrides used in the payment controller
+
+### Hardcoded configuration still in the repo
+
+The following values are still hardcoded:
+
+- database adapter settings in [`src/config/prisma.js`](../src/config/prisma.js)
+- database adapter settings in [`prisma/seed.js`](../prisma/seed.js)
+- the buyer app API base URL in [`services/api.ts`](../services/api.ts)
+- the admin API base URL in [`admin/lib/api.ts`](../admin/lib/api.ts)
+
+This split configuration is the main local setup friction point right now.
+
+## 9. Operational Boundaries
+
+The current architecture is workable, but several gaps are still visible in the codebase:
+
+- the admin settings page is not wired to backend persistence
+- the admin product form collects fields the current backend does not save
+- product create and update routes are not backend-protected
+- pending eSewa sessions live only in memory
+- Khalti is still a placeholder
+- the old local `orderStore` still exists even though backend orders are the active source of truth
+- payment Postman request files are not committed yet
+
+## 10. Suggested Reading Order
+
+For a practical code walkthrough, read in this order:
+
+1. [`README.md`](../README.md)
+2. [`app/_layout.tsx`](../app/_layout.tsx)
+3. [`services/api.ts`](../services/api.ts)
+4. [`app/checkout.tsx`](../app/checkout.tsx)
+5. [`app/payment-confirmation.tsx`](../app/payment-confirmation.tsx)
+6. [`src/app.js`](../src/app.js)
+7. [`src/routes/authRoutes.js`](../src/routes/authRoutes.js)
+8. [`src/routes/orderRoutes.js`](../src/routes/orderRoutes.js)
+9. [`src/controllers/paymentController.js`](../src/controllers/paymentController.js)
+10. [`admin/lib/api.ts`](../admin/lib/api.ts)
+11. [`admin/app/(dashboard)/page.tsx`](../admin/app/%28dashboard%29/page.tsx)

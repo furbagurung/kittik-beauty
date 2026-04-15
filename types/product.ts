@@ -7,5 +7,5 @@ export type Product = {
   category?: string;
   rating?: number;
   description?: string;
-  stock?: number;
+  stock: number;
 };

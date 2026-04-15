@@ -2,8 +2,8 @@ import { api } from "@/services/api";
 import { useAuthStore } from "@/store/authStore";
 import { getPaymentLabel } from "@/utils/payment";
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
-import { useEffect, useState } from "react";
+import { router, useFocusEffect } from "expo-router";
+import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -21,6 +21,7 @@ export default function OrdersScreen() {
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
 
   const formatPrice = (value: number) =>
     new Intl.NumberFormat("en-NP", {
@@ -49,6 +50,10 @@ export default function OrdersScreen() {
         return "Processing";
       case "delivered":
         return "Delivered";
+      case "cancelled":
+        return "Cancelled";
+      case "payment_failed":
+        return "Payment Failed";
       default:
         return status;
     }
@@ -62,6 +67,10 @@ export default function OrdersScreen() {
         return styles.statusBadgePaid;
       case "delivered":
         return styles.statusBadgeDelivered;
+      case "cancelled":
+        return styles.statusBadgeCancelled;
+      case "payment_failed":
+        return styles.statusBadgeFailed;
       default:
         return styles.statusBadge;
     }
@@ -75,16 +84,26 @@ export default function OrdersScreen() {
         return styles.statusTextPaid;
       case "delivered":
         return styles.statusTextDelivered;
+      case "cancelled":
+        return styles.statusTextCancelled;
+      case "payment_failed":
+        return styles.statusTextFailed;
       default:
         return styles.statusText;
     }
   };
-  useEffect(() => {
-    async function loadOrders() {
+
+  const loadOrders = useCallback(
+    async (isRefresh = false) => {
       if (!token) return;
 
       try {
-        setLoading(true);
+        if (isRefresh) {
+          setRefreshing(true);
+        } else {
+          setLoading(true);
+        }
+
         setError("");
 
         const data = await api.getOrders(token);
@@ -93,18 +112,35 @@ export default function OrdersScreen() {
         setError("Failed to load orders");
         console.log(err);
       } finally {
-        setLoading(false);
+        if (isRefresh) {
+          setRefreshing(false);
+        } else {
+          setLoading(false);
+        }
       }
-    }
+    },
+    [token],
+  );
 
+  useEffect(() => {
     if (!user) {
       setLoading(false);
       return;
     }
 
     loadOrders();
-  }, [user, token]);
+  }, [user, loadOrders]);
 
+  const handleRefresh = () => {
+    loadOrders(true);
+  };
+  useFocusEffect(
+    useCallback(() => {
+      if (!user || !token) return;
+
+      loadOrders(true);
+    }, [user, token, loadOrders]),
+  );
   if (!user) {
     return (
       <SafeAreaView style={styles.container}>
@@ -205,6 +241,8 @@ export default function OrdersScreen() {
         data={orders}
         keyExtractor={(item) => String(item.id)}
         showsVerticalScrollIndicator={false}
+        refreshing={refreshing}
+        onRefresh={handleRefresh}
         contentContainerStyle={[
           styles.listContent,
           orders.length === 0 && styles.listContentEmpty,
@@ -240,7 +278,7 @@ export default function OrdersScreen() {
           >
             <View style={styles.cardTop}>
               <View>
-                <Text style={styles.orderId}>{item.id}</Text>
+                <Text style={styles.orderId}>Order #{item.id}</Text>
                 <Text style={styles.orderDate}>
                   {formatDate(item.createdAt)}
                 </Text>
@@ -296,6 +334,18 @@ export default function OrdersScreen() {
 }
 
 const styles = StyleSheet.create({
+  statusBadgeCancelled: {
+    backgroundColor: "#fef2f2",
+  },
+  statusTextCancelled: {
+    color: "#dc2626",
+  },
+  statusBadgeFailed: {
+    backgroundColor: "#fff7ed",
+  },
+  statusTextFailed: {
+    color: "#c2410c",
+  },
   container: {
     flex: 1,
     backgroundColor: "#fff7f8",

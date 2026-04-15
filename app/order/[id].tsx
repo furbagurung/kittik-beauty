@@ -3,9 +3,11 @@ import { useAuthStore } from "@/store/authStore";
 import { getPaymentLabel } from "@/utils/payment";
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, router, useLocalSearchParams } from "expo-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import {
+  ActivityIndicator,
+  Alert,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -20,6 +22,7 @@ export default function OrderDetailsScreen() {
 
   const [order, setOrder] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isCancelling, setIsCancelling] = useState(false);
   const { id } = useLocalSearchParams<{ id: string }>();
 
   const formatPrice = (value: number) =>
@@ -49,6 +52,10 @@ export default function OrderDetailsScreen() {
         return "Processing";
       case "delivered":
         return "Delivered";
+      case "cancelled":
+        return "Cancelled";
+      case "payment_failed":
+        return "Payment Failed";
       default:
         return status;
     }
@@ -62,6 +69,10 @@ export default function OrderDetailsScreen() {
         return styles.statusBadgePaid;
       case "delivered":
         return styles.statusBadgeDelivered;
+      case "cancelled":
+        return styles.statusBadgeCancelled;
+      case "payment_failed":
+        return styles.statusBadgeFailed;
       default:
         return styles.statusBadge;
     }
@@ -75,34 +86,64 @@ export default function OrderDetailsScreen() {
         return styles.statusTextPaid;
       case "delivered":
         return styles.statusTextDelivered;
+      case "cancelled":
+        return styles.statusTextCancelled;
+      case "payment_failed":
+        return styles.statusTextFailed;
       default:
         return styles.statusText;
     }
   };
-  useEffect(() => {
-    async function loadOrder() {
-      if (!id || !token) return;
+  const canCancelOrder =
+    order?.status === "placed" || order?.status === "pending_payment";
+  const loadOrder = useCallback(async () => {
+    if (!id || !token) return;
 
-      try {
-        setLoading(true);
-
-        const data = await api.getOrderById(token, id);
-        setOrder(data);
-      } catch (error) {
-        console.log(error);
-      } finally {
-        setLoading(false);
-      }
+    try {
+      setLoading(true);
+      const data = await api.getOrderById(token, id);
+      setOrder(data);
+    } catch (error) {
+      console.log(error);
+    } finally {
+      setLoading(false);
     }
-
+  }, [id, token]);
+  useEffect(() => {
     if (!user) {
       setLoading(false);
       return;
     }
 
     loadOrder();
-  }, [id, token, user]);
+  }, [user, loadOrder]);
+  const handleCancelOrder = () => {
+    if (!order || !token || !canCancelOrder || isCancelling) return;
 
+    Alert.alert("Cancel Order", "Are you sure you want to cancel this order?", [
+      { text: "Keep Order", style: "cancel" },
+      {
+        text: "Cancel Order",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            setIsCancelling(true);
+            const updatedOrder = await api.cancelOwnOrder(token, order.id);
+            setOrder(updatedOrder);
+          } catch (error) {
+            Alert.alert(
+              "Unable to cancel",
+              error instanceof Error
+                ? error.message
+                : "Failed to cancel order.",
+            );
+          } finally {
+            setIsCancelling(false);
+          }
+        },
+      },
+    ]);
+  };
   if (!user) {
     return (
       <SafeAreaView style={styles.container}>
@@ -215,7 +256,7 @@ export default function OrderDetailsScreen() {
         <View style={styles.section}>
           <View style={styles.orderTop}>
             <View>
-              <Text style={styles.orderId}>{order.id}</Text>
+              <Text style={styles.orderId}>Order #{order.id}</Text>
               <Text style={styles.orderDate}>
                 {formatDate(order.createdAt)}
               </Text>
@@ -231,6 +272,23 @@ export default function OrderDetailsScreen() {
               </Text>
             </View>
           </View>
+
+          {canCancelOrder && (
+            <Pressable
+              style={[
+                styles.cancelOrderButton,
+                isCancelling && styles.cancelOrderButtonDisabled,
+              ]}
+              onPress={handleCancelOrder}
+              disabled={isCancelling}
+            >
+              {isCancelling ? (
+                <ActivityIndicator color="#dc2626" />
+              ) : (
+                <Text style={styles.cancelOrderButtonText}>Cancel Order</Text>
+              )}
+            </Pressable>
+          )}
         </View>
 
         <View style={styles.section}>
@@ -318,6 +376,37 @@ export default function OrderDetailsScreen() {
 }
 
 const styles = StyleSheet.create({
+  statusBadgeCancelled: {
+    backgroundColor: "#fef2f2",
+  },
+  statusTextCancelled: {
+    color: "#dc2626",
+  },
+  statusBadgeFailed: {
+    backgroundColor: "#fff7ed",
+  },
+  statusTextFailed: {
+    color: "#c2410c",
+  },
+  cancelOrderButton: {
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: "#fecaca",
+    backgroundColor: "#fef2f2",
+    paddingVertical: 12,
+    borderRadius: 999,
+    alignItems: "center",
+  },
+
+  cancelOrderButtonDisabled: {
+    opacity: 0.6,
+  },
+
+  cancelOrderButtonText: {
+    color: "#dc2626",
+    fontSize: 14,
+    fontWeight: "700",
+  },
   container: {
     flex: 1,
     backgroundColor: "#fff7f8",

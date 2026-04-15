@@ -1,6 +1,8 @@
+import { api } from "@/services/api";
 import { useCartStore } from "@/store/cartStore";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
+import { useEffect } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -11,7 +13,6 @@ import {
   Text,
   View,
 } from "react-native";
-
 export default function CartScreen() {
   const hydrated = useCartStore((state) => state.hydrated);
   const items = useCartStore((state) => state.items);
@@ -19,13 +20,78 @@ export default function CartScreen() {
   const decreaseQty = useCartStore((state) => state.decreaseQty);
   const removeItem = useCartStore((state) => state.removeItem);
   const totalItems = useCartStore((state) => state.totalItems);
-
+  const setQty = useCartStore((state) => state.setQty);
+  const syncItemStock = useCartStore((state) => state.syncItemStock);
   const formatPrice = (value: number) =>
     new Intl.NumberFormat("en-NP", {
       style: "currency",
       currency: "NPR",
       maximumFractionDigits: 0,
     }).format(value);
+
+  useEffect(() => {
+    items.forEach((item) => {
+      if (item.stock > 0 && item.quantity > item.stock) {
+        setQty(item.id, item.stock);
+      }
+    });
+  }, [items, setQty]);
+
+  const cartTotal = items.reduce(
+    (sum, item) => sum + item.price * item.quantity,
+    0,
+  );
+
+  const itemCount = totalItems();
+
+  const invalidItems = items.filter(
+    (item) => item.stock <= 0 || item.quantity > item.stock,
+  );
+
+  const isCartValid = invalidItems.length === 0;
+
+  useEffect(() => {
+    if (!hydrated || items.length === 0) return;
+
+    let isMounted = true;
+
+    async function syncCartWithLiveStock() {
+      try {
+        await Promise.all(
+          items.map(async (item) => {
+            try {
+              const latestProduct = await api.getProductById(item.id);
+
+              if (!isMounted) return;
+
+              syncItemStock(String(item.id), latestProduct.stock ?? 0);
+
+              if (
+                typeof latestProduct.stock === "number" &&
+                latestProduct.stock > 0 &&
+                item.quantity > latestProduct.stock
+              ) {
+                setQty(String(item.id), latestProduct.stock);
+              }
+            } catch {
+              if (!isMounted) return;
+              syncItemStock(String(item.id), 0);
+            }
+          }),
+        );
+      } catch (error) {
+        console.log("Error syncing cart stock:", error);
+      }
+    }
+
+    syncCartWithLiveStock();
+
+    return () => {
+      isMounted = false;
+    };
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydrated, items.length]);
 
   if (!hydrated) {
     return (
@@ -56,13 +122,6 @@ export default function CartScreen() {
       </SafeAreaView>
     );
   }
-
-  const cartTotal = items.reduce(
-    (sum, item) => sum + item.price * item.quantity,
-    0,
-  );
-
-  const itemCount = totalItems();
 
   return (
     <SafeAreaView style={styles.container}>
@@ -129,6 +188,18 @@ export default function CartScreen() {
                 Subtotal: {formatPrice(item.price * item.quantity)}
               </Text>
 
+              {item.stock === 0 ? (
+                <Text style={styles.stockErrorText}>Out of stock</Text>
+              ) : item.quantity >= item.stock ? (
+                <Text style={styles.stockWarningText}>
+                  Only {item.stock} available
+                </Text>
+              ) : item.stock <= 5 ? (
+                <Text style={styles.stockWarningText}>
+                  Low stock: {item.stock} left
+                </Text>
+              ) : null}
+
               <View style={styles.qtyRow}>
                 <Pressable
                   style={styles.qtyControl}
@@ -140,8 +211,13 @@ export default function CartScreen() {
                 <Text style={styles.qtyText}>{item.quantity}</Text>
 
                 <Pressable
-                  style={styles.qtyControl}
+                  style={[
+                    styles.qtyControl,
+                    (item.stock <= 0 || item.quantity >= item.stock) &&
+                      styles.qtyControlDisabled,
+                  ]}
                   onPress={() => increaseQty(item.id)}
+                  disabled={item.stock <= 0 || item.quantity >= item.stock}
                 >
                   <Text style={styles.qtyControlText}>+</Text>
                 </Pressable>
@@ -171,11 +247,59 @@ export default function CartScreen() {
             </View>
           </View>
 
+          {!isCartValid && (
+            <Text style={styles.cartWarningText}>
+              Some items in your cart are out of stock or exceed available
+              quantity.
+            </Text>
+          )}
+
           <Pressable
-            style={styles.checkoutBtn}
-            onPress={() => router.push({ pathname: "/checkout" })}
+            style={[
+              styles.checkoutBtn,
+              !isCartValid && styles.checkoutBtnDisabled,
+            ]}
+            onPress={async () => {
+              try {
+                await Promise.all(
+                  items.map(async (item) => {
+                    try {
+                      const latestProduct = await api.getProductById(item.id);
+                      syncItemStock(String(item.id), latestProduct.stock ?? 0);
+
+                      if (
+                        typeof latestProduct.stock === "number" &&
+                        latestProduct.stock > 0 &&
+                        item.quantity > latestProduct.stock
+                      ) {
+                        setQty(String(item.id), latestProduct.stock);
+                      }
+                    } catch {
+                      syncItemStock(String(item.id), 0);
+                    }
+                  }),
+                );
+
+                const refreshedItems = useCartStore.getState().items;
+
+                const hasInvalidItems = refreshedItems.some(
+                  (item) => item.stock <= 0 || item.quantity > item.stock,
+                );
+
+                if (hasInvalidItems) {
+                  return;
+                }
+
+                router.push({ pathname: "/checkout" });
+              } catch (error) {
+                console.log("Checkout stock sync failed:", error);
+              }
+            }}
+            disabled={!isCartValid}
           >
-            <Text style={styles.checkoutText}>Proceed to Checkout</Text>
+            <Text style={styles.checkoutText}>
+              {isCartValid ? "Proceed to Checkout" : "Fix Cart to Continue"}
+            </Text>
           </Pressable>
         </View>
       )}
@@ -184,6 +308,30 @@ export default function CartScreen() {
 }
 
 const styles = StyleSheet.create({
+  stockWarningText: {
+    fontSize: 12,
+    color: "#b45309",
+    fontWeight: "600",
+    marginBottom: 10,
+  },
+  stockErrorText: {
+    fontSize: 12,
+    color: "#dc2626",
+    fontWeight: "700",
+    marginBottom: 10,
+  },
+  qtyControlDisabled: {
+    opacity: 0.4,
+  },
+  cartWarningText: {
+    fontSize: 12,
+    color: "#b45309",
+    fontWeight: "600",
+    marginBottom: 12,
+  },
+  checkoutBtnDisabled: {
+    backgroundColor: "#e9b8c7",
+  },
   container: {
     flex: 1,
     backgroundColor: "#fff7f8",

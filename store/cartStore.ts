@@ -8,6 +8,7 @@ export type CartItem = {
   price: number;
   image: string;
   quantity: number;
+  stock: number;
 };
 
 type CartStore = {
@@ -16,11 +17,13 @@ type CartStore = {
   addToCart: (item: CartItem) => void;
   increaseQty: (id: string) => void;
   decreaseQty: (id: string) => void;
+  setQty: (id: string, qty: number) => void;
   removeItem: (id: string) => void;
   clearCart: () => void;
   totalItems: () => number;
   totalPrice: () => number;
   setHydrated: (value: boolean) => void;
+  syncItemStock: (id: string, stock: number) => void;
 };
 
 export const useCartStore = create<CartStore>()(
@@ -36,25 +39,41 @@ export const useCartStore = create<CartStore>()(
           const existing = state.items.find((i) => i.id === item.id);
 
           if (existing) {
+            const newQty = existing.quantity + item.quantity;
+
+            if (newQty > item.stock) {
+              return {
+                items: state.items.map((i) =>
+                  i.id === item.id ? { ...i, quantity: item.stock } : i,
+                ),
+              };
+            }
+
             return {
               items: state.items.map((i) =>
-                i.id === item.id
-                  ? { ...i, quantity: i.quantity + item.quantity }
-                  : i,
+                i.id === item.id ? { ...i, quantity: newQty } : i,
               ),
             };
           }
 
           return {
-            items: [...state.items, item],
+            items: [
+              ...state.items,
+              {
+                ...item,
+                quantity: Math.min(item.quantity, item.stock),
+              },
+            ],
           };
         }),
 
       increaseQty: (id) =>
         set((state) => ({
-          items: state.items.map((i) =>
-            i.id === id ? { ...i, quantity: i.quantity + 1 } : i,
-          ),
+          items: state.items.map((i) => {
+            if (i.id !== id) return i;
+            if (i.quantity >= i.stock) return i;
+            return { ...i, quantity: i.quantity + 1 };
+          }),
         })),
 
       decreaseQty: (id) =>
@@ -64,6 +83,29 @@ export const useCartStore = create<CartStore>()(
           ),
         })),
 
+      setQty: (id, qty) =>
+        set((state) => ({
+          items: state.items.map((i) =>
+            i.id === id
+              ? { ...i, quantity: Math.max(1, Math.min(qty, i.stock)) }
+              : i,
+          ),
+        })),
+      syncItemStock: (id, stock) =>
+        set((state) => ({
+          items: state.items.map((i) => {
+            if (i.id !== id) return i;
+
+            return {
+              ...i,
+              stock,
+              quantity:
+                stock <= 0
+                  ? i.quantity
+                  : Math.max(1, Math.min(i.quantity, stock)),
+            };
+          }),
+        })),
       removeItem: (id) =>
         set((state) => ({
           items: state.items.filter((i) => i.id !== id),

@@ -166,17 +166,37 @@ export default function ProductDetailsScreen() {
 
     return () => clearTimeout(timer);
   }, [showAddedMessage]);
+
+  useEffect(() => {
+    if (!product) return;
+
+    if (typeof product.stock === "number") {
+      if (product.stock <= 0) {
+        setQty(1);
+        return;
+      }
+
+      if (qty > product.stock) {
+        setQty(product.stock);
+      }
+    }
+  }, [product?.stock, qty, product]);
   const handleDecreaseQty = async () => {
     if (qty === 1) return;
     await Haptics.selectionAsync();
     setQty((prev) => Math.max(1, prev - 1));
   };
 
-  const handleIncreaseQty = async () => {
-    await Haptics.selectionAsync();
-    setQty((prev) => prev + 1);
-  };
+  const maxAvailableQty =
+    typeof product?.stock === "number" && product.stock > 0 ? product.stock : 1;
 
+  const handleIncreaseQty = async () => {
+    if (!isInStock) return;
+    if (qty >= maxAvailableQty) return;
+
+    await Haptics.selectionAsync();
+    setQty((prev) => Math.min(maxAvailableQty, prev + 1));
+  };
   const handleAddToCart = async () => {
     if (!product || !isInStock) return;
 
@@ -188,8 +208,8 @@ export default function ProductDetailsScreen() {
       price: product.price,
       image: product.image,
       quantity: qty,
+      stock: product.stock ?? 0,
     });
-
     setIsAdded(true);
     setShowAddedMessage(true);
   };
@@ -205,8 +225,8 @@ export default function ProductDetailsScreen() {
       price: product.price,
       image: product.image,
       quantity: qty,
+      stock: product.stock ?? 0,
     });
-
     router.push("/checkout");
   };
 
@@ -473,7 +493,17 @@ export default function ProductDetailsScreen() {
           <Text style={styles.name}>{product.name}</Text>
 
           <Text style={styles.price}>{formatPrice(product.price)}</Text>
+          {typeof product.stock === "number" &&
+          product.stock > 0 &&
+          product.stock <= 5 ? (
+            <Text style={styles.lowStockText}>
+              Only {product.stock} left in stock
+            </Text>
+          ) : null}
 
+          {typeof product.stock === "number" && product.stock === 0 ? (
+            <Text style={styles.outOfStockText}>Currently out of stock</Text>
+          ) : null}
           <View style={styles.infoChipsRow}>
             <View style={styles.infoChip}>
               <Ionicons name="leaf-outline" size={14} color="#d96c8a" />
@@ -564,10 +594,17 @@ export default function ProductDetailsScreen() {
             </View>
 
             <View style={styles.quantityBox}>
-              <Pressable style={styles.qtyBtn} onPress={handleDecreaseQty}>
-                <Text style={styles.qtyBtnText}>-</Text>
+              <Pressable
+                style={[
+                  styles.qtyBtn,
+                  (!isInStock || qty >= maxAvailableQty) &&
+                    styles.qtyBtnDisabled,
+                ]}
+                onPress={handleIncreaseQty}
+                disabled={!isInStock || qty >= maxAvailableQty}
+              >
+                <Text style={styles.qtyBtnText}>+</Text>
               </Pressable>
-
               <Text style={styles.qtyValue}>{qty}</Text>
 
               <Pressable style={styles.qtyBtn} onPress={handleIncreaseQty}>
@@ -706,6 +743,13 @@ export default function ProductDetailsScreen() {
             Total {qty > 1 ? `(${qty} items)` : "(1 item)"}
           </Text>
           <Text style={styles.footerAmount}>{formatPrice(totalPrice)}</Text>
+          <Text style={{ fontSize: 14, marginTop: 4 }}>
+            {product.stock === 0
+              ? "Out of Stock"
+              : product.stock <= 5
+                ? `Only ${product.stock} left`
+                : "In Stock"}
+          </Text>
         </View>
 
         <View style={styles.footerActions}>
@@ -864,6 +908,9 @@ const styles = StyleSheet.create({
   thumbnailButtonActive: {
     borderColor: "#d96c8a",
   },
+  qtyBtnDisabled: {
+    opacity: 0.45,
+  },
 
   thumbnailImage: {
     width: "100%",
@@ -876,6 +923,21 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingBottom: 176,
+  },
+  lowStockText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#b45309",
+    marginTop: -8,
+    marginBottom: 16,
+  },
+
+  outOfStockText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#b91c1c",
+    marginTop: -8,
+    marginBottom: 16,
   },
   imageWrap: {
     position: "relative",
