@@ -116,7 +116,7 @@ export default function CartScreen() {
         </View>
 
         <View style={styles.loaderWrap}>
-          <ActivityIndicator size="large" color="#d96c8a" />
+          <ActivityIndicator size="large" color="#DC2626" />
           <Text style={styles.loaderText}>Loading your cart...</Text>
         </View>
       </SafeAreaView>
@@ -152,7 +152,7 @@ export default function CartScreen() {
         ListEmptyComponent={
           <View style={styles.emptyWrap}>
             <View style={styles.emptyIconWrap}>
-              <Ionicons name="bag-outline" size={28} color="#d96c8a" />
+              <Ionicons name="bag-outline" size={28} color="#DC2626" />
             </View>
             <Text style={styles.emptyTitle}>Your cart is empty</Text>
             <Text style={styles.emptySubtext}>
@@ -241,7 +241,7 @@ export default function CartScreen() {
               <Ionicons
                 name="shield-checkmark-outline"
                 size={14}
-                color="#d96c8a"
+                color="#DC2626"
               />
               <Text style={styles.footerPillText}>Saved Cart</Text>
             </View>
@@ -330,11 +330,11 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   checkoutBtnDisabled: {
-    backgroundColor: "#e9b8c7",
+    backgroundColor: "#FECACA",
   },
   container: {
     flex: 1,
-    backgroundColor: "#fff7f8",
+    backgroundColor: "#FEF2F2",
   },
   header: {
     height: 60,
@@ -387,7 +387,7 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: "#fff1f5",
+    backgroundColor: "#FEF2F2",
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 16,
@@ -406,7 +406,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   continueBtn: {
-    backgroundColor: "#d96c8a",
+    backgroundColor: "#DC2626",
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 999,
@@ -495,7 +495,7 @@ const styles = StyleSheet.create({
     padding: 16,
     borderTopWidth: 1,
     borderColor: "#eee",
-    backgroundColor: "#fffafb",
+    backgroundColor: "#FEF2F2",
   },
   footerTop: {
     flexDirection: "row",
@@ -518,7 +518,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: "#fff1f5",
+    backgroundColor: "#FEF2F2",
     paddingHorizontal: 10,
     paddingVertical: 7,
     borderRadius: 999,
@@ -526,10 +526,10 @@ const styles = StyleSheet.create({
   footerPillText: {
     fontSize: 12,
     fontWeight: "700",
-    color: "#d96c8a",
+    color: "#DC2626",
   },
   checkoutBtn: {
-    backgroundColor: "#d96c8a",
+    backgroundColor: "#DC2626",
     paddingVertical: 15,
     borderRadius: 999,
     alignItems: "center",

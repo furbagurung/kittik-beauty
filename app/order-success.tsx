@@ -35,7 +35,7 @@ export default function OrderSuccessScreen() {
         <View style={styles.infoCard}>
           <View style={styles.infoRow}>
             <View style={styles.infoIconWrap}>
-              <Ionicons name="bag-handle-outline" size={18} color="#d96c8a" />
+              <Ionicons name="bag-handle-outline" size={18} color="#DC2626" />
             </View>
             <View style={styles.infoTextWrap}>
               <Text style={styles.infoTitle}>Order received</Text>
@@ -49,7 +49,7 @@ export default function OrderSuccessScreen() {
 
           <View style={styles.infoRow}>
             <View style={styles.infoIconWrap}>
-              <Ionicons name="car-outline" size={18} color="#d96c8a" />
+              <Ionicons name="car-outline" size={18} color="#DC2626" />
             </View>
             <View style={styles.infoTextWrap}>
               <Text style={styles.infoTitle}>Delivery update</Text>
@@ -66,7 +66,7 @@ export default function OrderSuccessScreen() {
               <Ionicons
                 name="shield-checkmark-outline"
                 size={18}
-                color="#d96c8a"
+                color="#DC2626"
               />
             </View>
             <View style={styles.infoTextWrap}>
@@ -123,7 +123,7 @@ export default function OrderSuccessScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#fff7f8",
+    backgroundColor: "#FEF2F2",
   },
   content: {
     flex: 1,
@@ -133,7 +133,7 @@ const styles = StyleSheet.create({
   },
   badge: {
     alignSelf: "center",
-    backgroundColor: "#fff1f5",
+    backgroundColor: "#FEF2F2",
     paddingHorizontal: 12,
     paddingVertical: 7,
     borderRadius: 999,
@@ -142,7 +142,7 @@ const styles = StyleSheet.create({
   badgeText: {
     fontSize: 12,
     fontWeight: "700",
-    color: "#d96c8a",
+    color: "#DC2626",
     letterSpacing: 0.2,
   },
   iconOuter: {
@@ -150,7 +150,7 @@ const styles = StyleSheet.create({
     width: 110,
     height: 110,
     borderRadius: 55,
-    backgroundColor: "#fde7ee",
+    backgroundColor: "#FEF2F2",
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 22,
@@ -159,10 +159,10 @@ const styles = StyleSheet.create({
     width: 82,
     height: 82,
     borderRadius: 41,
-    backgroundColor: "#d96c8a",
+    backgroundColor: "#DC2626",
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#d96c8a",
+    shadowColor: "#DC2626",
     shadowOpacity: 0.18,
     shadowRadius: 16,
     shadowOffset: { width: 0, height: 8 },
@@ -192,7 +192,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     marginBottom: 18,
     borderWidth: 1,
-    borderColor: "#f0d7df",
+    borderColor: "#FECACA",
   },
   orderPillLabel: {
     fontSize: 11,
@@ -220,7 +220,7 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: "#fff1f5",
+    backgroundColor: "#FEF2F2",
     alignItems: "center",
     justifyContent: "center",
     marginRight: 12,
@@ -241,14 +241,14 @@ const styles = StyleSheet.create({
   },
   divider: {
     height: 1,
-    backgroundColor: "#f3e4e8",
+    backgroundColor: "#FECACA",
     marginVertical: 14,
   },
   actions: {
     gap: 12,
   },
   primaryBtn: {
-    backgroundColor: "#d96c8a",
+    backgroundColor: "#DC2626",
     paddingHorizontal: 22,
     paddingVertical: 15,
     borderRadius: 999,
@@ -264,7 +264,7 @@ const styles = StyleSheet.create({
   secondaryBtn: {
     backgroundColor: "#ffffff",
     borderWidth: 1,
-    borderColor: "#f0d7df",
+    borderColor: "#FECACA",
     paddingHorizontal: 22,
     paddingVertical: 15,
     borderRadius: 999,

@@ -1,11 +1,14 @@
 "use client";
 
-import OrderStatusBadge from "@/components/orders/OrderStatusBadge";
+import DataTable from "@/components/shared/DataTable";
+import Notice from "@/components/shared/Notice";
 import PageHeader from "@/components/shared/PageHeader";
+import { OrderStatusPill } from "@/components/shared/StatusPill";
 import { getOrders, type AdminApiOrder } from "@/lib/api";
-import { formatCurrency } from "@/lib/format";
-import Link from "next/link";
-import { useEffect, useState } from "react";
+import { formatCurrency, formatRelativeTime } from "@/lib/format";
+import type { ColumnDef } from "@tanstack/react-table";
+import { ArrowUpRight } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<AdminApiOrder[]>([]);
@@ -13,104 +16,125 @@ export default function OrdersPage() {
   const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
+    let cancelled = false;
     async function loadOrders() {
       try {
         const data = await getOrders();
-        setOrders(data);
+        if (!cancelled) setOrders(data);
       } catch (error) {
-        setErrorMessage(
-          error instanceof Error ? error.message : "Failed to load orders.",
-        );
+        if (!cancelled) {
+          setErrorMessage(
+            error instanceof Error ? error.message : "Failed to load orders.",
+          );
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
-
     loadOrders();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
+  const columns = useMemo<ColumnDef<AdminApiOrder, unknown>[]>(
+    () => [
+      {
+        accessorKey: "id",
+        header: "Order",
+        cell: ({ row }) => (
+          <span className="font-mono text-[0.78rem] text-foreground">
+            #{String(row.original.id).padStart(5, "0")}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "fullName",
+        header: "Customer",
+        cell: ({ row }) => (
+          <div className="min-w-0">
+            <div className="truncate text-sm font-medium text-foreground">
+              {row.original.fullName}
+            </div>
+            <div className="truncate text-xs text-muted-foreground">
+              {row.original.phone}
+            </div>
+          </div>
+        ),
+      },
+      {
+        accessorKey: "totalItems",
+        header: "Items",
+        cell: ({ row }) => (
+          <span className="font-mono tabular text-muted-foreground">
+            {row.original.totalItems}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "total",
+        header: "Total",
+        cell: ({ row }) => (
+          <span className="font-mono tabular text-foreground">
+            {formatCurrency(row.original.total)}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "paymentMethod",
+        header: "Payment",
+        cell: ({ row }) => (
+          <span className="text-xs text-muted-foreground">
+            {row.original.paymentMethod}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "status",
+        header: "Status",
+        cell: ({ row }) => <OrderStatusPill status={row.original.status} />,
+      },
+      {
+        accessorKey: "createdAt",
+        header: "Placed",
+        cell: ({ row }) => (
+          <span className="font-mono text-[0.72rem] text-muted-foreground">
+            {formatRelativeTime(row.original.createdAt)}
+          </span>
+        ),
+      },
+      {
+        id: "actions",
+        header: "",
+        enableSorting: false,
+        cell: () => (
+          <span className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground opacity-0 transition-opacity group-hover/row:opacity-100">
+            Open
+            <ArrowUpRight className="size-3" strokeWidth={2} />
+          </span>
+        ),
+      },
+    ],
+    [],
+  );
+
   return (
-    <div>
+    <div className="space-y-5">
       <PageHeader
+        kicker="Operations"
         title="Orders"
-        description="Track customer orders and payment status."
+        description="Track order flow, payments, and fulfillment status."
       />
 
-      {errorMessage ? (
-        <div className="mb-4 rounded-xl border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
-          {errorMessage}
-        </div>
-      ) : null}
+      {errorMessage ? <Notice tone="warn" message={errorMessage} /> : null}
 
-      <div className="overflow-hidden rounded-xl border bg-white">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
-            <tr className="text-left">
-              <th className="px-4 py-3 font-medium">Order ID</th>
-              <th className="px-4 py-3 font-medium">Customer</th>
-              <th className="px-4 py-3 font-medium">Amount</th>
-              <th className="px-4 py-3 font-medium">Payment</th>
-              <th className="px-4 py-3 font-medium">Status</th>
-              <th className="px-4 py-3 font-medium">Date</th>
-              <th className="px-4 py-3 font-medium">Actions</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            {loading ? (
-              <tr>
-                <td
-                  colSpan={7}
-                  className="px-4 py-10 text-center text-sm text-gray-500"
-                >
-                  Loading orders...
-                </td>
-              </tr>
-            ) : orders.length > 0 ? (
-              orders.map((order) => (
-                <tr
-                  key={order.id}
-                  className="border-t transition hover:bg-gray-50"
-                >
-                  <td className="px-4 py-3 text-gray-700">{order.id}</td>
-                  <td className="px-4 py-3 font-medium text-gray-900">
-                    {order.fullName}
-                  </td>
-                  <td className="px-4 py-3 text-gray-700">
-                    {formatCurrency(order.total)}
-                  </td>
-                  <td className="px-4 py-3 text-gray-700">
-                    {order.paymentMethod}
-                  </td>
-                  <td className="px-4 py-3">
-                    <OrderStatusBadge status={order.status} />
-                  </td>
-                  <td className="px-4 py-3 text-gray-700">
-                    {new Date(order.createdAt).toLocaleDateString()}
-                  </td>
-                  <td className="px-4 py-3">
-                    <Link
-                      href={`/orders/${order.id}`}
-                      className="font-medium text-black underline-offset-4 hover:underline"
-                    >
-                      View
-                    </Link>
-                  </td>
-                </tr>
-              ))
-            ) : (
-              <tr>
-                <td
-                  colSpan={7}
-                  className="px-4 py-10 text-center text-sm text-gray-500"
-                >
-                  No orders available right now.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        data={orders}
+        columns={columns}
+        loading={loading}
+        emptyLabel="No orders yet. They will appear here as customers check out."
+        getRowHref={(row) => `/orders/${row.id}`}
+      />
     </div>
   );
 }

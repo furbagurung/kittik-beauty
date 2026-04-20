@@ -84,8 +84,7 @@ Important:
 
 - The dashboard uses a hardcoded backend base URL.
 - The settings page is presentational only.
-- The product form includes `stock`, `status`, and `description`, but the current backend product write handlers only persist `name`, `price`, `image`, and `category`.
-- Product create and update endpoints are not currently protected by backend auth middleware.
+- The product form still exposes a `status` field, but the current backend product model does not persist product status.
 - Login state is stored only in browser `localStorage`.
 
 ## Useful Commands

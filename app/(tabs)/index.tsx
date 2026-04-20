@@ -1,3 +1,5 @@
+import { CATEGORY_CARDS } from "@/constants/categories";
+import HeroSlider from "@/components/home/HeroSlider";
 import ProductCard from "@/components/home/ProductCard";
 import { api } from "@/services/api";
 import { Product } from "@/types/product";
@@ -5,9 +7,8 @@ import { Product } from "@/types/product";
 import { useCartStore } from "@/store/cartStore";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
-  FlatList,
   Image,
   Platform,
   Pressable,
@@ -20,20 +21,9 @@ import {
   View,
 } from "react-native";
 
-const categories = [
-  "All",
-  "Skincare",
-  "Makeup",
-  "Haircare",
-  "Body Care",
-  "Fragrance",
-];
-
 export default function HomeScreen() {
   const items = useCartStore((state) => state.items);
-  const [selectedCategory, setSelectedCategory] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
-  const scrollRef = useRef<ScrollView>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
@@ -45,7 +35,6 @@ export default function HomeScreen() {
         setLoading(true);
 
         const data = await api.getProducts({
-          category: selectedCategory === "All" ? undefined : selectedCategory,
           search: searchQuery.trim() || undefined,
         });
 
@@ -58,19 +47,13 @@ export default function HomeScreen() {
     }
 
     loadProducts();
-  }, [selectedCategory, searchQuery]);
+  }, [searchQuery]);
 
   const filteredProducts = products.slice(0, 8);
-  const scrollToProducts = () => {
-    scrollRef.current?.scrollTo({
-      y: 500,
-      animated: true,
-    });
-  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false}>
+      <ScrollView showsVerticalScrollIndicator={false}>
         <View style={styles.container}>
           <View style={styles.topBar}>
             <Pressable style={styles.utilityIcon}>
@@ -102,74 +85,43 @@ export default function HomeScreen() {
           </View>
 
           <View style={styles.heroWrap}>
-            <Image
-              source={{
-                uri: "https://images.unsplash.com/photo-1522337660859-02fbefca4702?q=80&w=1200&auto=format&fit=crop",
-              }}
-              style={styles.heroImageFull}
-            />
-            <View style={styles.heroOverlay} />
-            <View style={styles.heroContentOverlay}>
-              <Text style={styles.heroLabelAlt}>NEW EDIT</Text>
-              <Text style={styles.heroTitleAlt}>
-                Shop trending beauty picks
-              </Text>
-              <Text style={styles.heroSubtextAlt}>
-                Everyday skincare, makeup and glow essentials.
-              </Text>
-
-              <Pressable
-                style={styles.shopNowBtnAlt}
-                onPress={scrollToProducts}
-              >
-                <Text style={styles.shopNowTextAlt}>Shop Now</Text>
-              </Pressable>
-            </View>
-          </View>
-          <View style={styles.promoStrip}>
-            <View style={styles.promoItem}>
-              <Ionicons name="car-outline" size={16} color="#7c2d12" />
-              <Text style={styles.promoText}>Free Shipping</Text>
-            </View>
-            <View style={styles.promoDivider} />
-            <View style={styles.promoItem}>
-              <Ionicons name="flash-outline" size={16} color="#7c2d12" />
-              <Text style={styles.promoText}>Flash Deals</Text>
-            </View>
+            <HeroSlider />
           </View>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Categories</Text>
           </View>
 
-          <FlatList
-            data={categories}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            keyExtractor={(item) => item}
-            contentContainerStyle={styles.categoryList}
-            renderItem={({ item }) => {
-              const isActive = selectedCategory === item;
-
-              return (
-                <Pressable
-                  style={[
-                    styles.categoryPill,
-                    isActive && styles.categoryPillActive,
-                  ]}
-                  onPress={() => setSelectedCategory(item)}
-                >
-                  <Text
-                    style={[
-                      styles.categoryPillText,
-                      isActive && styles.categoryPillTextActive,
-                    ]}
-                  >
-                    {item}
-                  </Text>
-                </Pressable>
-              );
-            }}
-          />
+          <View style={styles.categoryGrid}>
+            {CATEGORY_CARDS.map((category) => (
+              <Pressable
+                key={category.label}
+                accessibilityRole="button"
+                style={({ pressed }) => [
+                  styles.categoryCard,
+                  pressed && styles.categoryCardPressed,
+                ]}
+                onPress={() =>
+                  router.push({
+                    pathname: "/categories",
+                    params: { category: category.label },
+                  })
+                }
+              >
+                <View style={styles.categoryThumbShell}>
+                  <View style={styles.categoryThumbInner}>
+                    <Image
+                      source={{ uri: category.image }}
+                      resizeMode="cover"
+                      style={styles.categoryThumbImage}
+                    />
+                  </View>
+                </View>
+                <Text style={styles.categoryCardLabel} numberOfLines={2}>
+                  {category.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
 
           <View style={styles.feedTabsRow}>
             {feedTabs.map((tab) => {
@@ -242,85 +194,9 @@ const styles = StyleSheet.create({
   feedTabTextActive: {
     color: "#ffffff",
   },
-  promoStrip: {
-    marginHorizontal: 16,
-    backgroundColor: "#f7f1e4",
-    borderRadius: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    marginBottom: 18,
-  },
-  promoItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  promoText: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#7c2d12",
-  },
-  promoDivider: {
-    width: 1,
-    height: 18,
-    backgroundColor: "#e7d8bd",
-  },
   heroWrap: {
-    height: 220,
-    marginHorizontal: 16,
-    borderRadius: 18,
-    overflow: "hidden",
-    marginBottom: 14,
-    position: "relative",
-  },
-  heroImageFull: {
     width: "100%",
-    height: "100%",
-  },
-  heroOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(17,24,39,0.26)",
-  },
-  heroContentOverlay: {
-    position: "absolute",
-    left: 16,
-    right: 16,
-    bottom: 18,
-  },
-  heroLabelAlt: {
-    color: "#ffffff",
-    fontSize: 11,
-    fontWeight: "700",
-    letterSpacing: 1,
-    marginBottom: 8,
-  },
-  heroTitleAlt: {
-    color: "#ffffff",
-    fontSize: 26,
-    fontWeight: "800",
-    lineHeight: 31,
-    marginBottom: 8,
-  },
-  heroSubtextAlt: {
-    color: "rgba(255,255,255,0.9)",
-    fontSize: 14,
-    lineHeight: 20,
-    marginBottom: 12,
-  },
-  shopNowBtnAlt: {
-    alignSelf: "flex-start",
-    backgroundColor: "#ffffff",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 999,
-  },
-  shopNowTextAlt: {
-    color: "#111827",
-    fontWeight: "700",
-    fontSize: 13,
+    marginBottom: 14,
   },
   topBar: {
     flexDirection: "row",
@@ -356,7 +232,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: -6,
     right: -6,
-    backgroundColor: "#d96c8a",
+    backgroundColor: "#DC2626",
     borderRadius: 999,
     minWidth: 18,
     height: 18,
@@ -407,7 +283,7 @@ const styles = StyleSheet.create({
   },
 
   heroCard: {
-    backgroundColor: "#f9dbe4",
+    backgroundColor: "#FEF2F2",
     borderRadius: 24,
     padding: 18,
     marginBottom: 24,
@@ -420,7 +296,7 @@ const styles = StyleSheet.create({
   heroLabel: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#b45372",
+    color: "#991B1B",
     marginBottom: 8,
     textTransform: "uppercase",
   },
@@ -438,7 +314,7 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   shopNowBtn: {
-    backgroundColor: "#d96c8a",
+    backgroundColor: "#DC2626",
     alignSelf: "flex-start",
     paddingHorizontal: 16,
     paddingVertical: 10,
@@ -471,30 +347,48 @@ const styles = StyleSheet.create({
   sectionLink: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#d96c8a",
+    color: "#DC2626",
   },
-  categoryList: {
+  categoryGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingBottom: 14,
+    rowGap: 18,
   },
-  categoryPill: {
-    backgroundColor: "#ffffff",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 999,
-    marginRight: 10,
+  categoryCard: {
+    width: "31%",
+    alignItems: "center",
   },
-  categoryPillActive: {
-    backgroundColor: "#d96c8a",
+  categoryCardPressed: {
+    opacity: 0.94,
   },
-  categoryPillText: {
-    color: "#374151",
-    fontWeight: "500",
-    fontSize: 14,
+  categoryThumbShell: {
+    width: "100%",
+    aspectRatio: 1,
+    borderRadius: 28,
+    backgroundColor: "#f3f1ee",
+    padding: 5,
+    marginBottom: 10,
   },
-  categoryPillTextActive: {
-    color: "#ffffff",
+  categoryThumbInner: {
+    flex: 1,
+    borderRadius: 24,
+    overflow: "hidden",
+    backgroundColor: "#f6f4f1",
+  },
+  categoryThumbImage: {
+    width: "100%",
+    height: "100%",
+  },
+  categoryCardLabel: {
+    color: "#111827",
+    textAlign: "center",
     fontWeight: "700",
+    fontSize: 14,
+    lineHeight: 18,
+    minHeight: 36,
   },
   productGrid: {
     flexDirection: "row",

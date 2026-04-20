@@ -161,7 +161,7 @@ export default function OrderDetailsScreen() {
 
         <View style={styles.emptyWrap}>
           <View style={styles.emptyIconWrap}>
-            <Ionicons name="lock-closed-outline" size={28} color="#d96c8a" />
+            <Ionicons name="lock-closed-outline" size={28} color="#DC2626" />
           </View>
 
           <Text style={styles.emptyTitle}>Login required</Text>
@@ -217,7 +217,7 @@ export default function OrderDetailsScreen() {
 
         <View style={styles.emptyWrap}>
           <View style={styles.emptyIconWrap}>
-            <Ionicons name="receipt-outline" size={28} color="#d96c8a" />
+            <Ionicons name="receipt-outline" size={28} color="#DC2626" />
           </View>
           <Text style={styles.emptyTitle}>Order not found</Text>
           <Text style={styles.emptySubtext}>
@@ -386,7 +386,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff7ed",
   },
   statusTextFailed: {
-    color: "#c2410c",
+    color: "#991B1B",
   },
   cancelOrderButton: {
     marginTop: 16,
@@ -409,7 +409,7 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    backgroundColor: "#fff7f8",
+    backgroundColor: "#FEF2F2",
   },
   header: {
     height: 60,
@@ -461,13 +461,13 @@ const styles = StyleSheet.create({
     color: "#6b7280",
   },
   statusBadge: {
-    backgroundColor: "#fff1f5",
+    backgroundColor: "#FEF2F2",
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 999,
   },
   statusText: {
-    color: "#d96c8a",
+    color: "#DC2626",
     fontSize: 12,
     fontWeight: "700",
   },
@@ -496,7 +496,7 @@ const styles = StyleSheet.create({
   productCard: {
     flexDirection: "row",
     marginBottom: 12,
-    backgroundColor: "#fff7f8",
+    backgroundColor: "#FEF2F2",
     borderRadius: 14,
     padding: 10,
   },
@@ -544,7 +544,7 @@ const styles = StyleSheet.create({
   },
   totalRow: {
     borderTopWidth: 1,
-    borderTopColor: "#f3e4e8",
+    borderTopColor: "#FECACA",
     paddingTop: 12,
     marginTop: 2,
     marginBottom: 0,
@@ -569,7 +569,7 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: "#fff1f5",
+    backgroundColor: "#FEF2F2",
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 16,
@@ -588,7 +588,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   primaryButton: {
-    backgroundColor: "#d96c8a",
+    backgroundColor: "#DC2626",
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 999,
@@ -602,7 +602,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff7ed",
   },
   statusTextPending: {
-    color: "#c2410c",
+    color: "#991B1B",
   },
   statusBadgePaid: {
     backgroundColor: "#ecfdf5",

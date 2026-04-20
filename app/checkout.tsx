@@ -134,7 +134,7 @@ export default function CheckoutScreen() {
         </View>
 
         <View style={styles.loaderWrap}>
-          <ActivityIndicator size="large" color="#d96c8a" />
+          <ActivityIndicator size="large" color="#DC2626" />
           <Text style={styles.loaderText}>Preparing your checkout...</Text>
         </View>
       </SafeAreaView>
@@ -361,7 +361,7 @@ export default function CheckoutScreen() {
           {!items.length ? (
             <View style={styles.emptyCard}>
               <View style={styles.emptyIconWrap}>
-                <Ionicons name="bag-handle-outline" size={22} color="#d96c8a" />
+                <Ionicons name="bag-handle-outline" size={22} color="#DC2626" />
               </View>
               <Text style={styles.emptyTitle}>Your cart is empty</Text>
               <Text style={styles.emptyText}>
@@ -552,7 +552,7 @@ export default function CheckoutScreen() {
                       <Ionicons
                         name="cash-outline"
                         size={18}
-                        color={paymentMethod === "cod" ? "#d96c8a" : "#6b7280"}
+                        color={paymentMethod === "cod" ? "#DC2626" : "#6b7280"}
                       />
                     </View>
                     <View>
@@ -574,7 +574,7 @@ export default function CheckoutScreen() {
                     <Ionicons
                       name="checkmark-circle"
                       size={20}
-                      color="#d96c8a"
+                      color="#DC2626"
                     />
                   )}
                 </Pressable>
@@ -598,7 +598,7 @@ export default function CheckoutScreen() {
                         name="phone-portrait-outline"
                         size={18}
                         color={
-                          paymentMethod === "esewa" ? "#d96c8a" : "#6b7280"
+                          paymentMethod === "esewa" ? "#DC2626" : "#6b7280"
                         }
                       />
                     </View>
@@ -621,7 +621,7 @@ export default function CheckoutScreen() {
                     <Ionicons
                       name="checkmark-circle"
                       size={20}
-                      color="#d96c8a"
+                      color="#DC2626"
                     />
                   )}
                 </Pressable>
@@ -652,7 +652,7 @@ export default function CheckoutScreen() {
                         name="wallet-outline"
                         size={18}
                         color={
-                          paymentMethod === "khalti" ? "#d96c8a" : "#6b7280"
+                          paymentMethod === "khalti" ? "#DC2626" : "#6b7280"
                         }
                       />
                     </View>
@@ -676,7 +676,7 @@ export default function CheckoutScreen() {
                     <Ionicons
                       name="checkmark-circle"
                       size={20}
-                      color="#d96c8a"
+                      color="#DC2626"
                     />
                   )}
                 </Pressable>
@@ -747,7 +747,7 @@ export default function CheckoutScreen() {
                 <Ionicons
                   name="shield-checkmark-outline"
                   size={14}
-                  color="#d96c8a"
+                  color="#DC2626"
                 />
                 <Text style={styles.footerPillText}>Trusted Checkout</Text>
               </View>
@@ -785,9 +785,9 @@ export default function CheckoutScreen() {
 
 const styles = StyleSheet.create({
   stockAlertCard: {
-    backgroundColor: "#fff7ed",
+    backgroundColor: "#FEF2F2",
     borderWidth: 1,
-    borderColor: "#fdba74",
+    borderColor: "#FECACA",
     borderRadius: 18,
     padding: 14,
     marginBottom: 14,
@@ -796,14 +796,14 @@ const styles = StyleSheet.create({
   stockAlertTitle: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#9a3412",
+    color: "#991B1B",
     marginBottom: 6,
   },
 
   stockAlertText: {
     fontSize: 13,
     lineHeight: 20,
-    color: "#7c2d12",
+    color: "#7F1D1D",
   },
 
   stockIssueList: {
@@ -812,9 +812,9 @@ const styles = StyleSheet.create({
   },
 
   stockIssueRow: {
-    backgroundColor: "#fff7f8",
+    backgroundColor: "#FEF2F2",
     borderWidth: 1,
-    borderColor: "#f0d7df",
+    borderColor: "#FECACA",
     borderRadius: 14,
     padding: 12,
   },
@@ -839,7 +839,7 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    backgroundColor: "#fff7f8",
+    backgroundColor: "#FEF2F2",
   },
   header: {
     height: 60,
@@ -889,13 +889,13 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   sectionBadge: {
-    backgroundColor: "#fff1f5",
+    backgroundColor: "#FEF2F2",
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 6,
   },
   sectionBadgeText: {
-    color: "#d96c8a",
+    color: "#DC2626",
     fontSize: 12,
     fontWeight: "700",
   },
@@ -924,9 +924,9 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   input: {
-    backgroundColor: "#fff7f8",
+    backgroundColor: "#FEF2F2",
     borderWidth: 1,
-    borderColor: "#f0d7df",
+    borderColor: "#FECACA",
     borderRadius: 14,
     paddingHorizontal: 14,
     paddingVertical: 13,
@@ -949,8 +949,8 @@ const styles = StyleSheet.create({
   },
   paymentOption: {
     borderWidth: 1,
-    borderColor: "#f0d7df",
-    backgroundColor: "#fff7f8",
+    borderColor: "#FECACA",
+    backgroundColor: "#FEF2F2",
     borderRadius: 16,
     paddingHorizontal: 14,
     paddingVertical: 14,
@@ -960,8 +960,8 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   paymentOptionActive: {
-    borderColor: "#d96c8a",
-    backgroundColor: "#fff1f5",
+    borderColor: "#DC2626",
+    backgroundColor: "#FEF2F2",
   },
   paymentLeft: {
     flexDirection: "row",
@@ -979,7 +979,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   paymentIconWrapActive: {
-    backgroundColor: "#fff7fa",
+    backgroundColor: "#FEF2F2",
   },
   paymentText: {
     fontSize: 14,
@@ -988,18 +988,18 @@ const styles = StyleSheet.create({
     marginBottom: 3,
   },
   paymentTextActive: {
-    color: "#d96c8a",
+    color: "#DC2626",
   },
   paymentSubtext: {
     fontSize: 12,
     color: "#6b7280",
   },
   summaryCard: {
-    backgroundColor: "#fff7f8",
+    backgroundColor: "#FEF2F2",
     borderRadius: 16,
     padding: 14,
     borderWidth: 1,
-    borderColor: "#f5dde4",
+    borderColor: "#FECACA",
   },
   summaryRow: {
     flexDirection: "row",
@@ -1017,7 +1017,7 @@ const styles = StyleSheet.create({
   },
   summaryTotalRow: {
     borderTopWidth: 1,
-    borderTopColor: "#f0d7df",
+    borderTopColor: "#FECACA",
     paddingTop: 12,
     marginTop: 2,
     marginBottom: 0,
@@ -1035,8 +1035,8 @@ const styles = StyleSheet.create({
   footer: {
     padding: 16,
     borderTopWidth: 1,
-    borderColor: "#f1e5e8",
-    backgroundColor: "#fffafb",
+    borderColor: "#FECACA",
+    backgroundColor: "#FEF2F2",
   },
   footerTop: {
     flexDirection: "row",
@@ -1059,7 +1059,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: "#fff1f5",
+    backgroundColor: "#FEF2F2",
     paddingHorizontal: 10,
     paddingVertical: 7,
     borderRadius: 999,
@@ -1067,10 +1067,10 @@ const styles = StyleSheet.create({
   footerPillText: {
     fontSize: 12,
     fontWeight: "700",
-    color: "#d96c8a",
+    color: "#DC2626",
   },
   placeOrderBtn: {
-    backgroundColor: "#d96c8a",
+    backgroundColor: "#DC2626",
     minHeight: 54,
     borderRadius: 999,
     alignItems: "center",
@@ -1097,7 +1097,7 @@ const styles = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 26,
-    backgroundColor: "#fff1f5",
+    backgroundColor: "#FEF2F2",
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 14,
@@ -1116,7 +1116,7 @@ const styles = StyleSheet.create({
     marginBottom: 18,
   },
   emptyButton: {
-    backgroundColor: "#d96c8a",
+    backgroundColor: "#DC2626",
     paddingHorizontal: 18,
     paddingVertical: 12,
     borderRadius: 999,
@@ -1144,9 +1144,9 @@ const styles = StyleSheet.create({
   },
   addressCard: {
     width: 220,
-    backgroundColor: "#fff7f8",
+    backgroundColor: "#FEF2F2",
     borderWidth: 1,
-    borderColor: "#f0d7df",
+    borderColor: "#FECACA",
     borderRadius: 16,
     padding: 14,
     marginRight: 12,
@@ -1154,7 +1154,7 @@ const styles = StyleSheet.create({
   addressLabel: {
     fontSize: 11,
     fontWeight: "700",
-    color: "#d96c8a",
+    color: "#DC2626",
     textTransform: "uppercase",
     marginBottom: 8,
   },
@@ -1184,7 +1184,7 @@ const styles = StyleSheet.create({
     alignSelf: "flex-start",
     backgroundColor: "#ffffff",
     borderWidth: 1,
-    borderColor: "#f0d7df",
+    borderColor: "#FECACA",
     borderRadius: 999,
     paddingHorizontal: 14,
     paddingVertical: 10,
@@ -1192,10 +1192,10 @@ const styles = StyleSheet.create({
   saveAddressBtnText: {
     fontSize: 13,
     fontWeight: "700",
-    color: "#d96c8a",
+    color: "#DC2626",
   },
   guestNotice: {
-    backgroundColor: "#fff1f5",
+    backgroundColor: "#FEF2F2",
     borderRadius: 20,
     padding: 16,
     marginBottom: 14,
@@ -1204,7 +1204,7 @@ const styles = StyleSheet.create({
   guestNoticeTitle: {
     fontSize: 15,
     fontWeight: "700",
-    color: "#9f1239",
+    color: "#7F1D1D",
     marginBottom: 6,
   },
 
@@ -1217,7 +1217,7 @@ const styles = StyleSheet.create({
 
   guestNoticeBtn: {
     alignSelf: "flex-start",
-    backgroundColor: "#d96c8a",
+    backgroundColor: "#DC2626",
     borderRadius: 999,
     paddingHorizontal: 14,
     paddingVertical: 10,

@@ -403,7 +403,7 @@ export default function ProductDetailsScreen() {
               <Ionicons
                 name={liked ? "heart" : "heart-outline"}
                 size={20}
-                color={liked ? "#d96c8a" : "#111827"}
+                color={liked ? "#DC2626" : "#111827"}
               />
             </Pressable>
 
@@ -506,12 +506,12 @@ export default function ProductDetailsScreen() {
           ) : null}
           <View style={styles.infoChipsRow}>
             <View style={styles.infoChip}>
-              <Ionicons name="leaf-outline" size={14} color="#d96c8a" />
+              <Ionicons name="leaf-outline" size={14} color="#DC2626" />
               <Text style={styles.infoChipText}>Skin Friendly</Text>
             </View>
 
             <View style={styles.infoChip}>
-              <Ionicons name="sparkles-outline" size={14} color="#d96c8a" />
+              <Ionicons name="sparkles-outline" size={14} color="#DC2626" />
               <Text style={styles.infoChipText}>Daily Use</Text>
             </View>
 
@@ -519,7 +519,7 @@ export default function ProductDetailsScreen() {
               <Ionicons
                 name="shield-checkmark-outline"
                 size={14}
-                color="#d96c8a"
+                color="#DC2626"
               />
               <Text style={styles.infoChipText}>Premium Care</Text>
             </View>
@@ -534,21 +534,21 @@ export default function ProductDetailsScreen() {
             <Text style={styles.sectionTitle}>Why you’ll love it</Text>
 
             <View style={styles.benefitRow}>
-              <Ionicons name="checkmark-circle" size={18} color="#d96c8a" />
+              <Ionicons name="checkmark-circle" size={18} color="#DC2626" />
               <Text style={styles.benefitText}>
                 Lightweight feel for comfortable everyday wear
               </Text>
             </View>
 
             <View style={styles.benefitRow}>
-              <Ionicons name="checkmark-circle" size={18} color="#d96c8a" />
+              <Ionicons name="checkmark-circle" size={18} color="#DC2626" />
               <Text style={styles.benefitText}>
                 Premium finish with a polished beauty look
               </Text>
             </View>
 
             <View style={styles.benefitRow}>
-              <Ionicons name="checkmark-circle" size={18} color="#d96c8a" />
+              <Ionicons name="checkmark-circle" size={18} color="#DC2626" />
               <Text style={styles.benefitText}>
                 Curated for a soft, modern self-care routine
               </Text>
@@ -761,7 +761,7 @@ export default function ProductDetailsScreen() {
             ]}
             onPress={handleAddToCart}
             disabled={!isInStock}
-            android_ripple={{ color: "#f4dfe6" }}
+            android_ripple={{ color: "#FECACA" }}
           >
             <Text style={styles.addToCartTextSecondary}>
               {isAdded ? "Added" : "Add to Cart"}
@@ -772,7 +772,7 @@ export default function ProductDetailsScreen() {
             style={[styles.buyNowBtn, !isInStock && styles.disabledPrimaryBtn]}
             onPress={handleBuyNow}
             disabled={!isInStock}
-            android_ripple={{ color: "#c85f7e" }}
+            android_ripple={{ color: "#C41E1E" }}
           >
             <Text style={styles.buyNowText}>
               {isInStock ? "Buy Now" : "Out of Stock"}
@@ -906,7 +906,7 @@ const styles = StyleSheet.create({
   },
 
   thumbnailButtonActive: {
-    borderColor: "#d96c8a",
+    borderColor: "#DC2626",
   },
   qtyBtnDisabled: {
     opacity: 0.45,
@@ -952,7 +952,7 @@ const styles = StyleSheet.create({
   },
   imageShimmer: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "#f6e9ee",
+    backgroundColor: "#FEF2F2",
     zIndex: 1,
   },
   iconButton: {
@@ -1027,7 +1027,7 @@ const styles = StyleSheet.create({
     height: 18,
     paddingHorizontal: 4,
     borderRadius: 999,
-    backgroundColor: "#d96c8a",
+    backgroundColor: "#DC2626",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1063,7 +1063,7 @@ const styles = StyleSheet.create({
   },
   content: {
     marginTop: -24,
-    backgroundColor: "#fffafb",
+    backgroundColor: "#FEF2F2",
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     padding: 20,
@@ -1071,7 +1071,7 @@ const styles = StyleSheet.create({
   },
   category: {
     fontSize: 13,
-    color: "#d96c8a",
+    color: "#DC2626",
     fontWeight: "700",
     marginBottom: 8,
     textTransform: "uppercase",
@@ -1117,7 +1117,7 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 14,
     borderWidth: 1,
-    borderColor: "#f7e8ed",
+    borderColor: "#FECACA",
   },
   sectionTitle: {
     fontSize: 16,
@@ -1156,12 +1156,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     alignSelf: "flex-start",
-    backgroundColor: "#fff6f8",
+    backgroundColor: "#FEF2F2",
     borderRadius: 999,
     paddingHorizontal: 8,
     paddingVertical: 6,
     borderWidth: 1,
-    borderColor: "#f3dce4",
+    borderColor: "#FECACA",
   },
   qtyBtn: {
     width: 38,
@@ -1171,7 +1171,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: "#f1e5e8",
+    borderColor: "#FECACA",
   },
   qtyBtnText: {
     fontSize: 20,
@@ -1201,7 +1201,7 @@ const styles = StyleSheet.create({
   },
   viewCartText: {
     fontSize: 14,
-    color: "#d96c8a",
+    color: "#DC2626",
     fontWeight: "700",
   },
   footer: {
@@ -1211,7 +1211,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     backgroundColor: "rgba(255,250,251,0.98)",
     borderTopWidth: 1,
-    borderTopColor: "#f1e5e8",
+    borderTopColor: "#FECACA",
     paddingHorizontal: 16,
     paddingTop: 14,
     paddingBottom: 18,
@@ -1303,7 +1303,7 @@ const styles = StyleSheet.create({
   },
 
   disabledPrimaryBtn: {
-    backgroundColor: "#e9b8c7",
+    backgroundColor: "#FECACA",
   },
   footerLabel: {
     fontSize: 12,
@@ -1322,7 +1322,7 @@ const styles = StyleSheet.create({
   },
   buyNowBtn: {
     flex: 1.2,
-    backgroundColor: "#d96c8a",
+    backgroundColor: "#DC2626",
     borderRadius: 999,
     alignItems: "center",
     justifyContent: "center",
@@ -1343,7 +1343,7 @@ const styles = StyleSheet.create({
   addToCartBtnSecondary: {
     backgroundColor: "#ffffff",
     borderWidth: 1,
-    borderColor: "#f0d7df",
+    borderColor: "#FECACA",
   },
   addToCartTextSecondary: {
     color: "#111827",
@@ -1395,7 +1395,7 @@ const styles = StyleSheet.create({
   },
   relatedCategory: {
     fontSize: 11,
-    color: "#d96c8a",
+    color: "#DC2626",
     fontWeight: "700",
     textTransform: "uppercase",
     marginBottom: 6,
@@ -1443,7 +1443,7 @@ const styles = StyleSheet.create({
     width: 26,
     height: 26,
     borderRadius: 13,
-    backgroundColor: "#fff1f5",
+    backgroundColor: "#FEF2F2",
     alignItems: "center",
     justifyContent: "center",
     marginTop: 1,
@@ -1451,7 +1451,7 @@ const styles = StyleSheet.create({
   stepBadgeText: {
     fontSize: 12,
     fontWeight: "700",
-    color: "#d96c8a",
+    color: "#DC2626",
   },
   stepText: {
     flex: 1,
@@ -1467,7 +1467,7 @@ const styles = StyleSheet.create({
   },
   highlightItem: {
     width: "47%",
-    backgroundColor: "#fff7f8",
+    backgroundColor: "#FEF2F2",
     borderRadius: 14,
     padding: 12,
   },

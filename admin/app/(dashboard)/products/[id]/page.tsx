@@ -1,46 +1,65 @@
 "use client";
 
-import ProductForm from "@/components/products/ProductForm";
-import PageHeader from "@/components/shared/PageHeader";
-import { getProductById, updateProduct } from "@/lib/api";
-import type { Product } from "@/types/product";
+import ProductForm, {
+  type ProductFormValues,
+} from "@/components/products/ProductForm";
+import Notice from "@/components/shared/Notice";
+import {
+  getProductById,
+  type AdminApiProduct,
+  updateProduct,
+} from "@/lib/api";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-
-type EditableProduct = {
-  id: number;
-  name: string;
-  price: number;
-  image: string;
-  category: string;
-  stock: number;
-  description?: string;
-};
 
 export default function EditProductPage() {
   const params = useParams();
   const router = useRouter();
   const id = Number(params.id);
 
-  const [product, setProduct] = useState<EditableProduct | null>(null);
+  const [product, setProduct] = useState<AdminApiProduct | null>(null);
   const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
+    let cancelled = false;
+
     async function loadProduct() {
       try {
         const data = await getProductById(id);
-        setProduct(data);
+        if (!cancelled) {
+          setProduct(data);
+          setErrorMessage("");
+        }
       } catch (error) {
-        console.error(error);
+        if (!cancelled) {
+          setProduct(null);
+          setErrorMessage(
+            error instanceof Error ? error.message : "Failed to load product.",
+          );
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     }
 
+    if (!Number.isFinite(id) || id <= 0) {
+      setProduct(null);
+      setErrorMessage("");
+      setLoading(false);
+      return () => {};
+    }
+
     loadProduct();
+
+    return () => {
+      cancelled = true;
+    };
   }, [id]);
 
-  async function handleUpdateProduct(values: Partial<Product>) {
+  async function handleUpdateProduct(values: ProductFormValues) {
     if (!values.name || !values.category || !values.price) {
       alert("Please fill name, category, and price.");
       return;
@@ -50,10 +69,12 @@ export default function EditProductPage() {
       await updateProduct(id, {
         name: values.name,
         price: Number(values.price || 0),
-        image: values.image || "",
         category: values.category,
         stock: Number(values.stock ?? 0),
         description: values.description || "",
+        primaryImageFile: values.primaryImageFile,
+        galleryFiles: values.galleryFiles,
+        existingGalleryImages: values.existingGalleryImages,
       });
 
       router.push("/products?success=updated");
@@ -66,33 +87,30 @@ export default function EditProductPage() {
   }
 
   if (loading) {
-    return <div className="p-6 text-sm text-gray-500">Loading product...</div>;
+    return <Notice tone="info" message="Loading product..." />;
+  }
+
+  if (errorMessage) {
+    return <Notice tone="danger" message={errorMessage} />;
   }
 
   if (!product) {
-    return <div className="p-6 text-sm text-red-600">Product not found.</div>;
+    return <Notice tone="warn" message="Product not found." />;
   }
 
   return (
-    <div>
-      <PageHeader
-        title="Edit Product"
-        description={`You are editing: ${product.name}`}
-      />
-
-      <div className="rounded-xl border bg-white p-6">
-        <ProductForm
-          defaultValues={{
-            name: product.name,
-            category: product.category,
-            price: String(product.price),
-            image: product.image,
-            stock: product.stock,
-            description: product.description || "",
-          }}
-          onSubmit={handleUpdateProduct}
-        />
-      </div>
-    </div>
+    <ProductForm
+      mode="edit"
+      defaultValues={{
+        name: product.name,
+        category: product.category,
+        price: String(product.price),
+        image: product.image,
+        images: product.images ?? [],
+        stock: product.stock,
+        description: product.description || "",
+      }}
+      onSubmit={handleUpdateProduct}
+    />
   );
 }

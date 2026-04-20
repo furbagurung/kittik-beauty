@@ -244,7 +244,7 @@ export default function PaymentConfirmationScreen() {
       <SafeAreaView style={styles.container}>
         <View style={styles.stateWrap}>
           <View style={styles.iconWrap}>
-            <Ionicons name="wallet-outline" size={28} color="#d96c8a" />
+            <Ionicons name="wallet-outline" size={28} color="#DC2626" />
           </View>
 
           <Text style={styles.title}>No payment session found</Text>
@@ -268,7 +268,7 @@ export default function PaymentConfirmationScreen() {
       <SafeAreaView style={styles.container}>
         <View style={styles.stateWrap}>
           <View style={styles.iconWrap}>
-            <Ionicons name="lock-closed-outline" size={28} color="#d96c8a" />
+            <Ionicons name="lock-closed-outline" size={28} color="#DC2626" />
           </View>
 
           <Text style={styles.title}>Login required</Text>
@@ -309,7 +309,7 @@ export default function PaymentConfirmationScreen() {
         </View>
 
         <View style={styles.summaryPill}>
-          <Ionicons name="shield-checkmark-outline" size={14} color="#d96c8a" />
+          <Ionicons name="shield-checkmark-outline" size={14} color="#DC2626" />
           <Text style={styles.summaryPillText}>In-App Checkout</Text>
         </View>
       </View>
@@ -368,7 +368,7 @@ export default function PaymentConfirmationScreen() {
             <View style={styles.overlay}>
               {isWebViewLoading || isProcessing ? (
                 <ActivityIndicator
-                  color="#d96c8a"
+                  color="#DC2626"
                   style={styles.overlaySpinner}
                 />
               ) : null}
@@ -413,7 +413,7 @@ export default function PaymentConfirmationScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#fff7f8",
+    backgroundColor: "#FEF2F2",
   },
   header: {
     height: 60,
@@ -421,7 +421,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "#fffafb",
+    backgroundColor: "#FEF2F2",
   },
   backButton: {
     width: 40,
@@ -447,9 +447,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     gap: 12,
-    backgroundColor: "#fffafb",
+    backgroundColor: "#FEF2F2",
     borderBottomWidth: 1,
-    borderBottomColor: "#f3e4e8",
+    borderBottomColor: "#FECACA",
   },
   summaryLabel: {
     fontSize: 12,
@@ -465,7 +465,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: "#fff1f5",
+    backgroundColor: "#FEF2F2",
     paddingHorizontal: 10,
     paddingVertical: 7,
     borderRadius: 999,
@@ -473,7 +473,7 @@ const styles = StyleSheet.create({
   summaryPillText: {
     fontSize: 12,
     fontWeight: "700",
-    color: "#d96c8a",
+    color: "#DC2626",
   },
   webViewWrap: {
     flex: 1,
@@ -518,7 +518,7 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: "#fff1f5",
+    backgroundColor: "#FEF2F2",
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 18,
@@ -538,7 +538,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   primaryBtn: {
-    backgroundColor: "#d96c8a",
+    backgroundColor: "#DC2626",
     paddingHorizontal: 24,
     paddingVertical: 14,
     borderRadius: 999,

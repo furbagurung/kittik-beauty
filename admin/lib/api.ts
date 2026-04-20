@@ -1,17 +1,19 @@
+import { getStoredAdminToken } from "@/lib/admin-session";
+
 const API_BASE_URL = "http://localhost:5000/api";
-function getStoredAdminToken() {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem("adminToken");
-}
+
 export async function apiFetch<T>(
   endpoint: string,
   options?: RequestInit,
   token?: string,
 ): Promise<T> {
+  const isFormDataBody =
+    typeof FormData !== "undefined" && options?.body instanceof FormData;
+
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
     ...options,
     headers: {
-      "Content-Type": "application/json",
+      ...(isFormDataBody ? {} : { "Content-Type": "application/json" }),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(options?.headers || {}),
     },
@@ -32,12 +34,48 @@ export type AdminApiProduct = {
   id: number;
   name: string;
   price: number;
-  image: string;
+  image?: string;
+  images?: string[];
   category: string;
   stock: number;
   description?: string;
   createdAt: string;
 };
+
+type ProductMutationInput = {
+  name: string;
+  price: number;
+  category: string;
+  stock: number;
+  description?: string;
+  primaryImageFile?: File | null;
+  galleryFiles?: File[];
+  existingGalleryImages?: string[];
+};
+
+function buildProductMutationFormData(data: ProductMutationInput) {
+  const formData = new FormData();
+
+  formData.append("name", data.name);
+  formData.append("price", String(data.price));
+  formData.append("category", data.category);
+  formData.append("stock", String(data.stock));
+  formData.append("description", data.description ?? "");
+  formData.append(
+    "existingGalleryImages",
+    JSON.stringify(data.existingGalleryImages ?? []),
+  );
+
+  if (data.primaryImageFile) {
+    formData.append("primaryImage", data.primaryImageFile);
+  }
+
+  for (const file of data.galleryFiles ?? []) {
+    formData.append("galleryImages", file);
+  }
+
+  return formData;
+}
 export async function getProducts() {
   return apiFetch<AdminApiProduct[]>("/products");
 }
@@ -47,15 +85,18 @@ export async function getProductById(id: number) {
 export async function createProduct(data: {
   name: string;
   price: number;
-  image?: string;
   category: string;
   stock: number;
+  description?: string;
+  primaryImageFile?: File | null;
+  galleryFiles?: File[];
+  existingGalleryImages?: string[];
 }) {
   return apiFetch<AdminApiProduct>(
     "/products",
     {
       method: "POST",
-      body: JSON.stringify(data),
+      body: buildProductMutationFormData(data),
     },
     getStoredAdminToken() || undefined,
   );
@@ -65,17 +106,19 @@ export async function updateProduct(
   data: {
     name: string;
     price: number;
-    image?: string;
     category: string;
     stock: number;
     description?: string;
+    primaryImageFile?: File | null;
+    galleryFiles?: File[];
+    existingGalleryImages?: string[];
   },
 ) {
   return apiFetch<AdminApiProduct>(
     `/products/${id}`,
     {
       method: "PUT",
-      body: JSON.stringify(data),
+      body: buildProductMutationFormData(data),
     },
     getStoredAdminToken() || undefined,
   );

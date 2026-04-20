@@ -1,3 +1,8 @@
+import {
+  PRODUCT_CATEGORY_FILTERS,
+  ProductCategoryFilter,
+  isProductCategoryFilter,
+} from "@/constants/categories";
 import ProductCard from "@/components/home/ProductCard";
 import Skeleton from "@/components/ui/Skeleton";
 
@@ -18,23 +23,38 @@ import {
   View,
 } from "react-native";
 
-const categories = [
-  "All",
-  "Skincare",
-  "Makeup",
-  "Haircare",
-  "Body Care",
-  "Fragrance",
-];
+async function fetchProductsData(params: {
+  selectedCategory: ProductCategoryFilter;
+  searchQuery: string;
+  sortBy: string;
+}) {
+  const { selectedCategory, searchQuery, sortBy } = params;
+  const backendSort =
+    sortBy === "price-low"
+      ? "price_asc"
+      : sortBy === "price-high"
+        ? "price_desc"
+        : sortBy === "top-rated"
+          ? "rating_desc"
+          : undefined;
+
+  return api.getProducts({
+    category: selectedCategory === "All" ? undefined : selectedCategory,
+    search: searchQuery.trim() || undefined,
+    sort: backendSort,
+  });
+}
 
 export default function ProductsScreen() {
   const params = useLocalSearchParams<{ category?: string }>();
   const initialCategory =
-    typeof params.category === "string" && categories.includes(params.category)
+    typeof params.category === "string" &&
+    isProductCategoryFilter(params.category)
       ? params.category
       : "All";
 
-  const [selectedCategory, setSelectedCategory] = useState(initialCategory);
+  const [selectedCategory, setSelectedCategory] =
+    useState<ProductCategoryFilter>(initialCategory);
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState("newest");
 
@@ -45,7 +65,7 @@ export default function ProductsScreen() {
   useEffect(() => {
     if (
       typeof params.category === "string" &&
-      categories.includes(params.category)
+      isProductCategoryFilter(params.category)
     ) {
       setSelectedCategory(params.category);
     } else {
@@ -53,43 +73,61 @@ export default function ProductsScreen() {
     }
   }, [params.category]);
 
-  const loadProducts = async (isRefresh = false) => {
-    try {
-      if (isRefresh) {
-        setRefreshing(true);
-      } else {
-        setLoading(true);
-      }
+  useEffect(() => {
+    let isMounted = true;
 
+    async function loadProducts() {
+      try {
+        setLoading(true);
+        setError("");
+
+        const data = await fetchProductsData({
+          selectedCategory,
+          searchQuery,
+          sortBy,
+        });
+
+        if (isMounted) {
+          setProducts(data);
+        }
+      } catch (err) {
+        if (isMounted) {
+          setError(
+            err instanceof Error ? err.message : "Failed to load products",
+          );
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadProducts();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [searchQuery, selectedCategory, sortBy]);
+
+  const handleRefresh = async () => {
+    try {
+      setRefreshing(true);
       setError("");
 
-      const backendSort =
-        sortBy === "price-low"
-          ? "price_asc"
-          : sortBy === "price-high"
-            ? "price_desc"
-            : sortBy === "top-rated"
-              ? "rating_desc"
-              : undefined;
-
-      const data = await api.getProducts({
-        category: selectedCategory === "All" ? undefined : selectedCategory,
-        search: searchQuery.trim() || undefined,
-        sort: backendSort,
+      const data = await fetchProductsData({
+        selectedCategory,
+        searchQuery,
+        sortBy,
       });
 
       setProducts(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load products");
     } finally {
-      setLoading(false);
       setRefreshing(false);
     }
   };
-
-  useEffect(() => {
-    loadProducts();
-  }, [selectedCategory, searchQuery, sortBy]);
 
   const filteredProducts = useMemo(() => {
     return products;
@@ -115,8 +153,8 @@ export default function ProductsScreen() {
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={() => loadProducts(true)}
-            tintColor="#d96c8a"
+            onRefresh={handleRefresh}
+            tintColor="#DC2626"
           />
         }
         columnWrapperStyle={
@@ -146,7 +184,7 @@ export default function ProductsScreen() {
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.categoryList}
             >
-              {categories.map((item) => {
+              {PRODUCT_CATEGORY_FILTERS.map((item) => {
                 const isActive = selectedCategory === item;
 
                 return (
@@ -311,7 +349,7 @@ export default function ProductsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#fff7f8",
+    backgroundColor: "#FEF2F2",
   },
   header: {
     height: 60,
@@ -365,7 +403,7 @@ const styles = StyleSheet.create({
     marginRight: 10,
   },
   categoryPillActive: {
-    backgroundColor: "#d96c8a",
+    backgroundColor: "#DC2626",
   },
   categoryPillText: {
     color: "#374151",
@@ -457,7 +495,7 @@ const styles = StyleSheet.create({
     color: "#6b7280",
   },
   errorWrap: {
-    backgroundColor: "#fff1f2",
+    backgroundColor: "#FEF2F2",
     borderRadius: 18,
     padding: 16,
     marginBottom: 14,
@@ -465,12 +503,12 @@ const styles = StyleSheet.create({
   errorTitle: {
     fontSize: 15,
     fontWeight: "700",
-    color: "#9f1239",
+    color: "#7F1D1D",
     marginBottom: 4,
   },
   errorText: {
     fontSize: 13,
-    color: "#be123c",
+    color: "#991B1B",
   },
   skeletonGrid: {
     flexDirection: "row",

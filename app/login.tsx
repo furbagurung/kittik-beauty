@@ -80,7 +80,7 @@ export default function LoginScreen() {
         <View style={styles.content}>
           <View style={styles.hero}>
             <View style={styles.iconWrap}>
-              <Ionicons name="person-outline" size={26} color="#d96c8a" />
+              <Ionicons name="person-outline" size={26} color="#DC2626" />
             </View>
             <Text style={styles.title}>Welcome back</Text>
             <Text style={styles.subtitle}>
@@ -148,7 +148,7 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    backgroundColor: "#fff7f8",
+    backgroundColor: "#FEF2F2",
   },
   header: {
     height: 60,
@@ -176,7 +176,7 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: "#fff1f5",
+    backgroundColor: "#FEF2F2",
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 14,
@@ -205,9 +205,9 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   input: {
-    backgroundColor: "#fff7f8",
+    backgroundColor: "#FEF2F2",
     borderWidth: 1,
-    borderColor: "#f0d7df",
+    borderColor: "#FECACA",
     borderRadius: 14,
     paddingHorizontal: 14,
     paddingVertical: 13,
@@ -225,7 +225,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   primaryBtn: {
-    backgroundColor: "#d96c8a",
+    backgroundColor: "#DC2626",
     minHeight: 52,
     borderRadius: 999,
     alignItems: "center",
@@ -243,7 +243,7 @@ const styles = StyleSheet.create({
   },
   linkText: {
     textAlign: "center",
-    color: "#d96c8a",
+    color: "#DC2626",
     fontSize: 14,
     fontWeight: "700",
   },

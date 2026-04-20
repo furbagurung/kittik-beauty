@@ -49,7 +49,7 @@ export default function ProfileScreen() {
       <View style={styles.content}>
         <View style={styles.headerBlock}>
           <View style={styles.avatarWrap}>
-            <Ionicons name="person-outline" size={28} color="#d96c8a" />
+            <Ionicons name="person-outline" size={28} color="#DC2626" />
           </View>
 
           <Text style={styles.title}>{user ? user.name : "Profile"}</Text>
@@ -153,7 +153,7 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#fff7f8",
+    backgroundColor: "#FEF2F2",
   },
   content: {
     flex: 1,
@@ -166,7 +166,7 @@ const styles = StyleSheet.create({
     width: 58,
     height: 58,
     borderRadius: 29,
-    backgroundColor: "#fff1f5",
+    backgroundColor: "#FEF2F2",
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 14,
@@ -214,7 +214,7 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: "#fff1f5",
+    backgroundColor: "#FEF2F2",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -258,7 +258,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingVertical: 14,
     borderWidth: 1,
-    borderColor: "#f0d7df",
+    borderColor: "#FECACA",
   },
 
   loginBtnText: {
@@ -269,7 +269,7 @@ const styles = StyleSheet.create({
 
   signupBtn: {
     flex: 1,
-    backgroundColor: "#d96c8a",
+    backgroundColor: "#DC2626",
     borderRadius: 999,
     alignItems: "center",
     justifyContent: "center",

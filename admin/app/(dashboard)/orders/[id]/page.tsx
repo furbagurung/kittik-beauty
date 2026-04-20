@@ -1,10 +1,32 @@
 "use client";
 
+import Notice from "@/components/shared/Notice";
 import PageHeader from "@/components/shared/PageHeader";
+import SectionCard from "@/components/shared/SectionCard";
+import StatusPill, { OrderStatusPill } from "@/components/shared/StatusPill";
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { getOrderById, updateOrderStatus, type AdminApiOrder } from "@/lib/api";
-import { formatCurrency } from "@/lib/format";
+import { formatCurrency, formatShortDate } from "@/lib/format";
+import { cn } from "@/lib/utils";
+import { ArrowLeft, Check } from "lucide-react";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
+
+const STATUS_OPTIONS = [
+  "pending_payment",
+  "placed",
+  "processing",
+  "delivered",
+  "cancelled",
+] as const;
 
 export default function OrderDetailPage() {
   const params = useParams();
@@ -15,165 +37,231 @@ export default function OrderDetailPage() {
   const [errorMessage, setErrorMessage] = useState("");
   const [selectedStatus, setSelectedStatus] = useState("");
   const [savingStatus, setSavingStatus] = useState(false);
+  const [savedFlash, setSavedFlash] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
     async function loadOrder() {
       try {
         const data = await getOrderById(id);
+        if (cancelled) return;
         setOrder(data);
         setSelectedStatus(data.status);
       } catch (error) {
-        setErrorMessage(
-          error instanceof Error ? error.message : "Failed to load order.",
-        );
+        if (!cancelled) {
+          setErrorMessage(
+            error instanceof Error ? error.message : "Failed to load order.",
+          );
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
-
     loadOrder();
+    return () => {
+      cancelled = true;
+    };
   }, [id]);
+
   async function handleSaveStatus() {
     if (!order) return;
-
     try {
       setSavingStatus(true);
-
-      const updatedOrder = await updateOrderStatus(order.id, selectedStatus);
-      setOrder(updatedOrder);
-      setSelectedStatus(updatedOrder.status);
-
-      alert("Order status updated successfully.");
+      const updated = await updateOrderStatus(order.id, selectedStatus);
+      setOrder(updated);
+      setSelectedStatus(updated.status);
+      setSavedFlash(true);
+      setTimeout(() => setSavedFlash(false), 2000);
     } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : "Failed to update order status.";
-
-      alert(message);
+      setErrorMessage(
+        error instanceof Error ? error.message : "Failed to update order.",
+      );
     } finally {
       setSavingStatus(false);
     }
   }
-  return (
-    <div>
-      <PageHeader title="Order Detail" description={`Order ID: ${id}`} />
 
-      {loading ? (
-        <div className="rounded-xl border bg-white p-6 text-sm text-gray-500">
-          Loading order...
-        </div>
-      ) : errorMessage ? (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-sm text-red-700">
-          {errorMessage}
-        </div>
-      ) : order ? (
-        <div className="rounded-xl border bg-white p-6">
-          <div className="grid gap-4 text-sm text-gray-700">
-            <div>
-              <span className="font-medium text-gray-900">Customer:</span>{" "}
-              {order.fullName}
+  if (loading) {
+    return <Notice tone="info" message="Loading order..." />;
+  }
+
+  if (errorMessage) {
+    return <Notice tone="danger" message={errorMessage} />;
+  }
+
+  if (!order) {
+    return <Notice tone="warn" message="Order not found." />;
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <Link
+          href="/orders"
+          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition hover:text-foreground"
+        >
+          <ArrowLeft className="size-4" strokeWidth={2} />
+          Back to orders
+        </Link>
+      </div>
+
+      <PageHeader
+        kicker={`Order #${String(id).padStart(5, "0")}`}
+        title="Order details"
+        description="Review line items, payment information, shipping details, and fulfillment status."
+        action={<OrderStatusPill status={order.status} />}
+      />
+
+      <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
+        <SectionCard title="Line items" kicker="Cart">
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-sm">
+              <thead>
+                <tr className="border-b border-hairline bg-secondary/70">
+                  <th className="h-11 px-4 text-left font-mono text-[0.67rem] uppercase tracking-[0.12em] text-muted-foreground">
+                    Product
+                  </th>
+                  <th className="h-11 px-4 text-right font-mono text-[0.67rem] uppercase tracking-[0.12em] text-muted-foreground">
+                    Unit
+                  </th>
+                  <th className="h-11 px-4 text-right font-mono text-[0.67rem] uppercase tracking-[0.12em] text-muted-foreground">
+                    Qty
+                  </th>
+                  <th className="h-11 px-4 text-right font-mono text-[0.67rem] uppercase tracking-[0.12em] text-muted-foreground">
+                    Total
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {order.items.map((item) => (
+                  <tr key={item.id} className="border-b border-hairline/70 last:border-b-0">
+                    <td className="px-4 py-3.5 text-foreground">{item.name}</td>
+                    <td className="px-4 py-3.5 text-right font-mono tabular text-muted-foreground">
+                      {formatCurrency(item.price)}
+                    </td>
+                    <td className="px-4 py-3.5 text-right font-mono tabular text-muted-foreground">
+                      x{item.quantity}
+                    </td>
+                    <td className="px-4 py-3.5 text-right font-mono tabular text-foreground">
+                      {formatCurrency(item.price * item.quantity)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <dl className="mt-4 grid gap-2 border-t border-hairline pt-4 text-sm">
+            <Row label="Subtotal" value={formatCurrency(order.subtotal)} />
+            <Row label="Delivery" value={formatCurrency(order.deliveryFee)} />
+            <div className="mt-2 border-t border-hairline pt-2">
+              <Row label="Total" value={formatCurrency(order.total)} strong />
             </div>
-            <div>
-              <span className="font-medium text-gray-900">Phone:</span>{" "}
-              {order.phone}
-            </div>
-            <div>
-              <span className="font-medium text-gray-900">Address:</span>{" "}
-              {order.address}
-            </div>
-            <div>
-              <span className="font-medium text-gray-900">Payment Method:</span>{" "}
-              {order.paymentMethod}
-            </div>
-            <div>
-              <span className="font-medium text-gray-900">Total Items:</span>{" "}
-              {order.totalItems}
-            </div>
-            <div>
-              <span className="font-medium text-gray-900">Subtotal:</span>{" "}
-              {formatCurrency(order.subtotal)}
-            </div>
-            <div>
-              <span className="font-medium text-gray-900">Delivery Fee:</span>{" "}
-              {formatCurrency(order.deliveryFee)}
-            </div>
-            <div>
-              <span className="font-medium text-gray-900">Total:</span>{" "}
-              {formatCurrency(order.total)}
-            </div>
-            <div className="grid gap-2">
-              <label className="font-medium text-gray-900">Status</label>
-              <select
-                value={selectedStatus}
-                onChange={(e) => setSelectedStatus(e.target.value)}
-                className="w-full max-w-xs rounded-lg border px-3 py-2 text-sm outline-none focus:border-black"
-              >
-                <option value="pending_payment">pending_payment</option>
-                <option value="placed">placed</option>
-                <option value="processing">processing</option>
-                <option value="delivered">delivered</option>
-                <option value="cancelled">cancelled</option>
-              </select>
-              <button
+          </dl>
+        </SectionCard>
+
+        <div className="grid content-start gap-6">
+          <SectionCard title="Customer" kicker="Shipping">
+            <dl className="grid gap-3 text-sm">
+              <Meta label="Name" value={order.fullName} />
+              <Meta label="Phone" value={order.phone} mono />
+              <Meta label="Address" value={order.address} />
+              <Meta label="Payment" value={order.paymentMethod.toUpperCase()} mono />
+              <Meta label="Placed" value={formatShortDate(order.createdAt)} mono />
+            </dl>
+          </SectionCard>
+
+          <SectionCard title="Fulfillment" kicker="Status" accent>
+            <div className="grid gap-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Current status</span>
+                <OrderStatusPill status={order.status} />
+              </div>
+
+              <label className="grid gap-2">
+                <span className="text-sm font-medium text-foreground">Move to</span>
+                <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {STATUS_OPTIONS.map((status) => (
+                      <SelectItem key={status} value={status}>
+                        {status.replace(/_/g, " ")}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </label>
+
+              <Button
                 type="button"
                 onClick={handleSaveStatus}
-                disabled={savingStatus}
-                className="mt-3 inline-flex rounded-lg bg-black px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
+                disabled={savingStatus || selectedStatus === order.status}
               >
-                {savingStatus ? "Saving..." : "Save Status"}
-              </button>
-            </div>
-            <div>
-              <span className="font-medium text-gray-900">Created At:</span>{" "}
-              {new Date(order.createdAt).toLocaleString()}
-            </div>
-          </div>
+                {savedFlash ? (
+                  <>
+                    <Check className="size-4" strokeWidth={2.4} />
+                    Saved
+                  </>
+                ) : savingStatus ? (
+                  "Saving..."
+                ) : (
+                  "Apply status"
+                )}
+              </Button>
 
-          <div className="mt-6">
-            <h2 className="mb-3 text-base font-semibold text-gray-900">
-              Order Items
-            </h2>
+              {savedFlash ? (
+                <StatusPill
+                  label="Updated"
+                  tone="success"
+                  className="justify-self-start"
+                />
+              ) : null}
+            </div>
+          </SectionCard>
+        </div>
+      </div>
+    </div>
+  );
+}
 
-            {order.items && order.items.length > 0 ? (
-              <div className="overflow-hidden rounded-lg border">
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
-                    <tr className="text-left">
-                      <th className="px-4 py-3 font-medium">Product</th>
-                      <th className="px-4 py-3 font-medium">Price</th>
-                      <th className="px-4 py-3 font-medium">Quantity</th>
-                      <th className="px-4 py-3 font-medium">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {order.items.map((item) => (
-                      <tr key={item.id} className="border-t">
-                        <td className="px-4 py-3 text-gray-900">{item.name}</td>
-                        <td className="px-4 py-3 text-gray-700">
-                          {formatCurrency(item.price)}
-                        </td>
-                        <td className="px-4 py-3 text-gray-700">
-                          {item.quantity}
-                        </td>
-                        <td className="px-4 py-3 text-gray-700">
-                          {formatCurrency(item.price * item.quantity)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <p className="text-sm text-gray-500">No order items found.</p>
-            )}
-          </div>
-        </div>
-      ) : (
-        <div className="rounded-xl border bg-white p-6 text-sm text-gray-500">
-          Order not found.
-        </div>
-      )}
+function Row({
+  label,
+  value,
+  strong,
+}: {
+  label: string;
+  value: string;
+  strong?: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-sm text-muted-foreground">{label}</span>
+      <span className={cn("font-mono tabular text-foreground", strong && "text-base font-semibold")}>
+        {value}
+      </span>
+    </div>
+  );
+}
+
+function Meta({
+  label,
+  value,
+  mono,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+}) {
+  return (
+    <div className="grid gap-1">
+      <span className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">
+        {label}
+      </span>
+      <span className={cn("text-sm text-foreground", mono && "font-mono")}>
+        {value}
+      </span>
     </div>
   );
 }

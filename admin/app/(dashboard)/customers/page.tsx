@@ -1,8 +1,23 @@
 "use client";
 
+import DataTable from "@/components/shared/DataTable";
+import Notice from "@/components/shared/Notice";
 import PageHeader from "@/components/shared/PageHeader";
+import StatusPill from "@/components/shared/StatusPill";
 import { getUsers, type AdminApiUser } from "@/lib/api";
-import { useEffect, useState } from "react";
+import { formatShortDate } from "@/lib/format";
+import type { ColumnDef } from "@tanstack/react-table";
+import { useEffect, useMemo, useState } from "react";
+
+function initialsOf(name: string) {
+  return name
+    .split(" ")
+    .map((part) => part[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+}
 
 export default function CustomersPage() {
   const [users, setUsers] = useState<AdminApiUser[]>([]);
@@ -10,87 +25,103 @@ export default function CustomersPage() {
   const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
+    let cancelled = false;
     async function loadUsers() {
       try {
         const data = await getUsers();
-        setUsers(data);
+        if (!cancelled) setUsers(data);
       } catch (error) {
-        setErrorMessage(
-          error instanceof Error ? error.message : "Failed to load users.",
-        );
+        if (!cancelled) {
+          setErrorMessage(
+            error instanceof Error ? error.message : "Failed to load users.",
+          );
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
-
     loadUsers();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
+  const columns = useMemo<ColumnDef<AdminApiUser, unknown>[]>(
+    () => [
+      {
+        accessorKey: "id",
+        header: "ID",
+        cell: ({ row }) => (
+          <span className="font-mono text-[0.78rem] text-muted-foreground">
+            #{String(row.original.id).padStart(4, "0")}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "name",
+        header: "Name",
+        cell: ({ row }) => (
+          <div className="flex items-center gap-3">
+            <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-accent text-[0.72rem] font-semibold text-primary">
+              {initialsOf(row.original.name)}
+            </div>
+            <span className="text-sm font-medium text-foreground">
+              {row.original.name}
+            </span>
+          </div>
+        ),
+      },
+      {
+        accessorKey: "email",
+        header: "Email",
+        cell: ({ row }) => (
+          <span className="font-mono text-[0.78rem] text-muted-foreground">
+            {row.original.email}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "role",
+        header: "Role",
+        cell: ({ row }) => {
+          const isAdmin = row.original.role?.toLowerCase() === "admin";
+          return (
+            <StatusPill
+              label={row.original.role}
+              tone={isAdmin ? "accent" : "neutral"}
+            />
+          );
+        },
+      },
+      {
+        accessorKey: "createdAt",
+        header: "Joined",
+        cell: ({ row }) => (
+          <span className="font-mono text-[0.72rem] text-muted-foreground">
+            {formatShortDate(row.original.createdAt)}
+          </span>
+        ),
+      },
+    ],
+    [],
+  );
+
   return (
-    <div>
+    <div className="space-y-5">
       <PageHeader
-        title="Customers"
-        description="View all users and their roles."
+        kicker="Customers"
+        title="People"
+        description="Directory of registered users and operators."
       />
 
-      {errorMessage ? (
-        <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {errorMessage}
-        </div>
-      ) : null}
+      {errorMessage ? <Notice tone="danger" message={errorMessage} /> : null}
 
-      <div className="overflow-hidden rounded-xl border bg-white">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
-            <tr className="text-left">
-              <th className="px-4 py-3 font-medium">User ID</th>
-              <th className="px-4 py-3 font-medium">Name</th>
-              <th className="px-4 py-3 font-medium">Email</th>
-              <th className="px-4 py-3 font-medium">Role</th>
-              <th className="px-4 py-3 font-medium">Joined</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            {loading ? (
-              <tr>
-                <td
-                  colSpan={5}
-                  className="px-4 py-10 text-center text-sm text-gray-500"
-                >
-                  Loading users...
-                </td>
-              </tr>
-            ) : users.length > 0 ? (
-              users.map((user) => (
-                <tr
-                  key={user.id}
-                  className="border-t transition hover:bg-gray-50"
-                >
-                  <td className="px-4 py-3 text-gray-700">{user.id}</td>
-                  <td className="px-4 py-3 font-medium text-gray-900">
-                    {user.name}
-                  </td>
-                  <td className="px-4 py-3 text-gray-700">{user.email}</td>
-                  <td className="px-4 py-3 text-gray-700">{user.role}</td>
-                  <td className="px-4 py-3 text-gray-700">
-                    {new Date(user.createdAt).toLocaleDateString()}
-                  </td>
-                </tr>
-              ))
-            ) : (
-              <tr>
-                <td
-                  colSpan={5}
-                  className="px-4 py-10 text-center text-sm text-gray-500"
-                >
-                  No users found.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        data={users}
+        columns={columns}
+        loading={loading}
+        emptyLabel="No customers registered yet."
+      />
     </div>
   );
 }

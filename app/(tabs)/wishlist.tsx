@@ -33,7 +33,7 @@ export default function WishlistScreen() {
           <Text style={styles.title}>Wishlist</Text>
 
           <View style={styles.loaderWrap}>
-            <ActivityIndicator size="large" color="#d96c8a" />
+            <ActivityIndicator size="large" color="#DC2626" />
             <Text style={styles.loaderText}>Loading your wishlist...</Text>
           </View>
         </View>
@@ -66,7 +66,7 @@ export default function WishlistScreen() {
           ListEmptyComponent={
             <View style={styles.emptyWrap}>
               <View style={styles.emptyIconWrap}>
-                <Ionicons name="heart-outline" size={28} color="#d96c8a" />
+                <Ionicons name="heart-outline" size={28} color="#DC2626" />
               </View>
 
               <Text style={styles.emptyTitle}>Your wishlist is empty</Text>
@@ -131,7 +131,7 @@ export default function WishlistScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#fff7f8",
+    backgroundColor: "#FEF2F2",
   },
   content: {
     flex: 1,
@@ -150,7 +150,7 @@ const styles = StyleSheet.create({
     color: "#111827",
   },
   countPill: {
-    backgroundColor: "#fff1f5",
+    backgroundColor: "#FEF2F2",
     paddingHorizontal: 12,
     paddingVertical: 7,
     borderRadius: 999,
@@ -158,7 +158,7 @@ const styles = StyleSheet.create({
   countPillText: {
     fontSize: 12,
     fontWeight: "700",
-    color: "#d96c8a",
+    color: "#DC2626",
   },
   loaderWrap: {
     flex: 1,
@@ -188,7 +188,7 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: "#fff1f5",
+    backgroundColor: "#FEF2F2",
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 16,
@@ -208,7 +208,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   emptyButton: {
-    backgroundColor: "#d96c8a",
+    backgroundColor: "#DC2626",
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 999,
@@ -240,7 +240,7 @@ const styles = StyleSheet.create({
   },
   category: {
     fontSize: 11,
-    color: "#d96c8a",
+    color: "#DC2626",
     fontWeight: "700",
     marginBottom: 4,
     textTransform: "uppercase",

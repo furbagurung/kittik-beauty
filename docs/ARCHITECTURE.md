@@ -152,8 +152,10 @@ Mounted route groups from [`src/app.js`](../src/app.js):
 - `GET /api/products/:id`
 - `POST /api/products`
 - `PUT /api/products/:id`
+- `PATCH /api/products/:id`
+- `DELETE /api/products/:id`
 
-The write routes are not currently wrapped in `protect` or `isAdmin`.
+Product writes are wrapped in both `protect` and `isAdmin`.
 
 #### Order routes
 
@@ -331,8 +333,6 @@ This split configuration is the main local setup friction point right now.
 The current architecture is workable, but several gaps are still visible in the codebase:
 
 - the admin settings page is not wired to backend persistence
-- the admin product form collects fields the current backend does not save
-- product create and update routes are not backend-protected
 - pending eSewa sessions live only in memory
 - the backend now depends on required eSewa env vars being present at process start
 - Khalti is still a placeholder

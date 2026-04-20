@@ -31,7 +31,7 @@ The Express app currently exposes:
 - health check routes
 - customer signup and login
 - admin login, admin stats, recent orders, and user listing
-- product read routes plus create and update routes
+- public product read routes plus admin-protected product write routes
 - inventory-aware order creation, customer cancellation, detail fetch, and admin status updates
 - eSewa initiate, redirect, callback, and verify routes
 
@@ -184,8 +184,6 @@ To use the admin dashboard end-to-end, you need a database user whose `role` is 
 - `GET /api/health`
 - `GET /api/products`
 - `GET /api/products/:id`
-- `POST /api/products`
-- `PUT /api/products/:id`
 - `POST /api/auth/signup`
 - `POST /api/auth/login`
 - `POST /api/auth/admin/login`
@@ -203,6 +201,10 @@ To use the admin dashboard end-to-end, you need a database user whose `role` is 
 
 ### Admin-protected routes
 
+- `POST /api/products`
+- `PUT /api/products/:id`
+- `PATCH /api/products/:id`
+- `DELETE /api/products/:id`
 - `PATCH /api/orders/:id/status`
 - `GET /api/auth/users`
 - `GET /api/auth/admin/stats`
@@ -258,8 +260,6 @@ postman/                Repo-local Postman collections and globals
 - Pending eSewa sessions are stored in memory and are lost on process restart.
 - The backend currently fails fast at startup if required `ESEWA_*` variables are missing.
 - Khalti is not implemented beyond placeholder client code.
-- Product create and update routes are not currently protected by auth middleware.
-- The admin product form exposes stock, status, and description fields, but the current backend product write handlers only persist `name`, `price`, `image`, and `category`.
 - The admin settings page is presentational only.
 - Postman collections for payment endpoints are not committed yet.
 

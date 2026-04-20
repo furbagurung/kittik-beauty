@@ -22,7 +22,9 @@ model Product {
   description String?
   price       Float
   image       String?
+  images      Json?
   category    String?
+  rating      Float    @default(0)
   stock       Int      @default(0)
   createdAt   DateTime @default(now())
 }
