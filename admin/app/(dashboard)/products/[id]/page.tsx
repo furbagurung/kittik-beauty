@@ -5,12 +5,15 @@ import ProductForm, {
 } from "@/components/products/ProductForm";
 import Notice from "@/components/shared/Notice";
 import {
+  deleteProduct,
   getProductById,
   type AdminApiProduct,
   updateProduct,
 } from "@/lib/api";
+import { getErrorMessage } from "@/lib/errors";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 
 export default function EditProductPage() {
   const params = useParams();
@@ -61,7 +64,7 @@ export default function EditProductPage() {
 
   async function handleUpdateProduct(values: ProductFormValues) {
     if (!values.name || !values.category || !values.price) {
-      alert("Please fill name, category, and price.");
+      toast.error("Fill name, category, and price");
       return;
     }
 
@@ -71,18 +74,36 @@ export default function EditProductPage() {
         price: Number(values.price || 0),
         category: values.category,
         stock: Number(values.stock ?? 0),
+        status: values.status,
         description: values.description || "",
+        image: values.image,
         primaryImageFile: values.primaryImageFile,
         galleryFiles: values.galleryFiles,
         existingGalleryImages: values.existingGalleryImages,
+        options: values.options,
+        variants: values.variants,
+        tags: values.tags,
+        productType: values.productType,
+        vendor: values.vendor,
+        seoTitle: values.seoTitle,
+        seoDescription: values.seoDescription,
+        variantImageFiles: values.variantImageFiles,
       });
 
       router.push("/products?success=updated");
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Failed to update product.";
+      toast.error(getErrorMessage(error, "Failed to update product"));
+    }
+  }
 
-      alert(message);
+  async function handleDeleteProduct() {
+    if (!product) return;
+
+    try {
+      await deleteProduct(id);
+      router.push("/products?success=deleted");
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Failed to delete product"));
     }
   }
 
@@ -100,6 +121,7 @@ export default function EditProductPage() {
 
   return (
     <ProductForm
+      key={product.id}
       mode="edit"
       defaultValues={{
         name: product.name,
@@ -108,9 +130,18 @@ export default function EditProductPage() {
         image: product.image,
         images: product.images ?? [],
         stock: product.stock,
+        status: product.status,
         description: product.description || "",
+        options: product.options ?? [],
+        variants: product.variants ?? [],
+        tags: product.tags ?? [],
+        productType: product.productType ?? "",
+        vendor: product.vendor ?? "",
+        seoTitle: product.seoTitle ?? "",
+        seoDescription: product.seoDescription ?? "",
       }}
       onSubmit={handleUpdateProduct}
+      onDelete={handleDeleteProduct}
     />
   );
 }

@@ -70,6 +70,23 @@ export default function CheckoutScreen() {
       currency: "NPR",
       maximumFractionDigits: 0,
     }).format(value);
+  async function refreshItemStock(item: (typeof items)[number]) {
+    const latestProduct = await api.getProductById(item.productId ?? item.id);
+    const latestVariant = item.variantId
+      ? latestProduct.variants?.find(
+          (variant: { id?: number }) => String(variant.id) === item.variantId,
+        )
+      : latestProduct.variants?.find(
+          (variant: { isDefault?: boolean }) => variant.isDefault,
+        );
+    const latestStock = latestVariant?.stock ?? latestProduct.stock ?? 0;
+
+    syncItemStock(String(item.id), latestStock);
+
+    if (latestStock > 0 && item.quantity > latestStock) {
+      setQty(String(item.id), latestStock);
+    }
+  }
   useEffect(() => {
     if (!hydrated || items.length === 0) return;
 
@@ -80,17 +97,7 @@ export default function CheckoutScreen() {
         await Promise.all(
           items.map(async (item) => {
             try {
-              const latestProduct = await api.getProductById(item.id);
-
-              if (!isMounted) return;
-
-              const latestStock = latestProduct.stock ?? 0;
-
-              syncItemStock(String(item.id), latestStock);
-
-              if (latestStock > 0 && item.quantity > latestStock) {
-                setQty(String(item.id), latestStock);
-              }
+              await refreshItemStock(item);
             } catch {
               if (!isMounted) return;
               syncItemStock(String(item.id), 0);
@@ -201,7 +208,8 @@ export default function CheckoutScreen() {
   };
   const orderPayload = {
     items: items.map((item) => ({
-      productId: Number(item.id),
+      productId: Number(item.productId ?? item.id),
+      variantId: item.variantId ? Number(item.variantId) : undefined,
       name: item.name,
       price: item.price,
       quantity: item.quantity,

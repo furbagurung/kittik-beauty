@@ -30,7 +30,12 @@ export async function createOrder(req, res) {
     }
 
     const normalizedItems = items.map((item) => ({
-      productId: Number(item.productId ?? item.id),
+      productId:
+        item.productId === undefined && item.id === undefined
+          ? undefined
+          : Number(item.productId ?? item.id),
+      variantId:
+        item.variantId === undefined ? undefined : Number(item.variantId),
       name: String(item.name),
       price: Number(item.price),
       quantity: Number(item.quantity),
@@ -38,7 +43,8 @@ export async function createOrder(req, res) {
 
     for (const item of normalizedItems) {
       if (
-        !Number.isInteger(item.productId) ||
+        (!Number.isInteger(item.variantId) &&
+          !Number.isInteger(item.productId)) ||
         !Number.isInteger(item.quantity) ||
         item.quantity <= 0
       ) {
@@ -46,39 +52,84 @@ export async function createOrder(req, res) {
       }
     }
 
-    const productIds = normalizedItems.map((item) => item.productId);
+    const variantIds = normalizedItems
+      .map((item) => item.variantId)
+      .filter((id) => Number.isInteger(id));
+    const productIds = normalizedItems
+      .filter((item) => !Number.isInteger(item.variantId))
+      .map((item) => item.productId);
 
-    const products = await prisma.product.findMany({
+    const [requestedVariants, fallbackProducts] = await Promise.all([
+      prisma.productVariant.findMany({
+        where: {
+          id: { in: variantIds },
+        },
+        include: { product: true },
+      }),
+      prisma.product.findMany({
       where: {
         id: { in: productIds },
       },
-    });
+        include: {
+          variants: {
+            where: { isDefault: true },
+            take: 1,
+          },
+        },
+      }),
+    ]);
 
-    const productMap = new Map(
-      products.map((product) => [product.id, product]),
+    const variantMap = new Map(
+      requestedVariants.map((variant) => [variant.id, variant]),
     );
+    const fallbackProductMap = new Map(
+      fallbackProducts.map((product) => [product.id, product]),
+    );
+    const orderItems = normalizedItems.map((item) => {
+      if (Number.isInteger(item.variantId)) {
+        const variant = variantMap.get(item.variantId);
 
-    for (const item of normalizedItems) {
-      const product = productMap.get(item.productId);
-
-      if (!product) {
-        return res
-          .status(404)
-          .json({ message: `Product not found: ${item.productId}` });
+        return { ...item, variant };
       }
 
-      if (product.stock < item.quantity) {
+      const product = fallbackProductMap.get(item.productId);
+      const variant = product?.variants?.[0];
+
+      return { ...item, variant, product };
+    });
+
+    for (const item of orderItems) {
+      const variant = item.variant;
+
+      if (!variant) {
+        return res
+          .status(404)
+          .json({ message: `Product variant not found: ${item.variantId ?? item.productId}` });
+      }
+
+      if (
+        variant.trackQuantity &&
+        !variant.continueSellingWhenOutOfStock &&
+        variant.stock < item.quantity
+      ) {
         return res.status(400).json({
-          message: `Insufficient stock for ${product.name}. Only ${product.stock} left.`,
+          message: `Insufficient stock for ${item.name}. Only ${variant.stock} left.`,
         });
       }
     }
 
     const order = await prisma.$transaction(async (tx) => {
-      for (const item of normalizedItems) {
-        const updateResult = await tx.product.updateMany({
+      for (const item of orderItems) {
+        if (
+          !item.variant.trackQuantity ||
+          item.variant.continueSellingWhenOutOfStock
+        ) {
+          continue;
+        }
+
+        const updateResult = await tx.productVariant.updateMany({
           where: {
-            id: item.productId,
+            id: item.variant.id,
             stock: {
               gte: item.quantity,
             },
@@ -91,14 +142,14 @@ export async function createOrder(req, res) {
         });
 
         if (updateResult.count === 0) {
-          const latestProduct = await tx.product.findUnique({
-            where: { id: item.productId },
+          const latestVariant = await tx.productVariant.findUnique({
+            where: { id: item.variant.id },
           });
 
           return res.status(400).json({
             message: `Insufficient stock for ${
-              latestProduct?.name || "this product"
-            }. Only ${latestProduct?.stock ?? 0} left.`,
+              item.name || latestVariant?.title || "this product"
+            }. Only ${latestVariant?.stock ?? 0} left.`,
           });
         }
       }
@@ -117,8 +168,8 @@ export async function createOrder(req, res) {
           status:
             status || (paymentMethod === "cod" ? "placed" : "pending_payment"),
           items: {
-            create: normalizedItems.map((item) => ({
-              productId: item.productId,
+            create: orderItems.map((item) => ({
+              variantId: item.variant.id,
               name: item.name,
               price: item.price,
               quantity: item.quantity,

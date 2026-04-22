@@ -10,6 +10,7 @@ import {
   useReactTable,
 } from "@tanstack/react-table";
 import { ArrowDown, ArrowUp, ChevronsUpDown } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 type Props<TData> = {
@@ -33,6 +34,7 @@ export default function DataTable<TData>({
   skeletonRows = 5,
   className,
 }: Props<TData>) {
+  const router = useRouter();
   const [sorting, setSorting] = useState<SortingState>([]);
 
   // TanStack Table exposes mutable helpers here; keep lint scoped to this call.
@@ -126,9 +128,20 @@ export default function DataTable<TData>({
                       clickable &&
                         "cursor-pointer hover:bg-[color:color-mix(in_oklab,var(--primary)_8%,var(--card))]",
                     )}
-                    onClick={() => {
+                    onClick={(event) => {
+                      const target = event.target;
+                      const isInteractive =
+                        target instanceof Element &&
+                        Boolean(
+                          target.closest(
+                            'a, button, input, select, textarea, [role="button"]',
+                          ),
+                        );
+
+                      if (isInteractive) return;
+
                       if (href) {
-                        window.location.href = href;
+                        router.push(href);
                       } else {
                         onRowClick?.(row.original);
                       }

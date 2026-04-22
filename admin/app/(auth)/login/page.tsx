@@ -4,14 +4,16 @@ import Kbd from "@/components/shared/Kbd";
 import Notice from "@/components/shared/Notice";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { setAdminSession } from "@/lib/admin-session";
+import { bootstrapAdminSession, setAdminSession } from "@/lib/admin-session";
 import { adminLogin } from "@/lib/api";
+import { useAdminSession } from "@/lib/use-admin-session";
 import { ArrowRight, ShieldCheck, Store, Zap } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 export default function AdminLoginPage() {
   const router = useRouter();
+  const { status } = useAdminSession();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -23,6 +25,16 @@ export default function AdminLoginPage() {
     const id = setInterval(() => setClock(formatClock(new Date())), 1000);
     return () => clearInterval(id);
   }, []);
+
+  useEffect(() => {
+    void bootstrapAdminSession();
+  }, []);
+
+  useEffect(() => {
+    if (status === "authenticated") {
+      router.replace("/");
+    }
+  }, [router, status]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -40,7 +52,7 @@ export default function AdminLoginPage() {
         token: response.token,
         user: response.user,
       });
-      router.push("/");
+      router.replace("/");
     } catch (error) {
       setErrorMessage(
         error instanceof Error ? error.message : "Admin login failed.",

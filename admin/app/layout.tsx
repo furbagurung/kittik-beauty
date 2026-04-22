@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Instrument_Sans, Instrument_Serif, JetBrains_Mono } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
+import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
 const sans = Instrument_Sans({
@@ -48,6 +49,7 @@ export default function RootLayout({
           storageKey="kittik-admin-theme"
         >
           {children}
+          <Toaster position="top-right" richColors closeButton />
         </ThemeProvider>
       </body>
     </html>

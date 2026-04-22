@@ -29,6 +29,28 @@ export default function CartScreen() {
       maximumFractionDigits: 0,
     }).format(value);
 
+  async function refreshItemStock(item: (typeof items)[number]) {
+    const latestProduct = await api.getProductById(item.productId ?? item.id);
+    const latestVariant = item.variantId
+      ? latestProduct.variants?.find(
+          (variant: { id?: number }) => String(variant.id) === item.variantId,
+        )
+      : latestProduct.variants?.find(
+          (variant: { isDefault?: boolean }) => variant.isDefault,
+        );
+    const latestStock = latestVariant?.stock ?? latestProduct.stock ?? 0;
+
+    syncItemStock(String(item.id), latestStock);
+
+    if (
+      typeof latestStock === "number" &&
+      latestStock > 0 &&
+      item.quantity > latestStock
+    ) {
+      setQty(String(item.id), latestStock);
+    }
+  }
+
   useEffect(() => {
     items.forEach((item) => {
       if (item.stock > 0 && item.quantity > item.stock) {
@@ -60,19 +82,7 @@ export default function CartScreen() {
         await Promise.all(
           items.map(async (item) => {
             try {
-              const latestProduct = await api.getProductById(item.id);
-
-              if (!isMounted) return;
-
-              syncItemStock(String(item.id), latestProduct.stock ?? 0);
-
-              if (
-                typeof latestProduct.stock === "number" &&
-                latestProduct.stock > 0 &&
-                item.quantity > latestProduct.stock
-              ) {
-                setQty(String(item.id), latestProduct.stock);
-              }
+              await refreshItemStock(item);
             } catch {
               if (!isMounted) return;
               syncItemStock(String(item.id), 0);
@@ -176,6 +186,20 @@ export default function CartScreen() {
                 <Text style={styles.name} numberOfLines={2}>
                   {item.name}
                 </Text>
+                {item.variantTitle && item.variantTitle !== "Default Title" ? (
+                  <Text style={styles.variantText} numberOfLines={1}>
+                    {item.variantTitle}
+                  </Text>
+                ) : item.selectedOptions?.length ? (
+                  <Text style={styles.variantText} numberOfLines={1}>
+                    {item.selectedOptions
+                      .map(
+                        (selection) =>
+                          `${selection.optionName}: ${selection.value}`,
+                      )
+                      .join(" · ")}
+                  </Text>
+                ) : null}
 
                 <Pressable onPress={() => removeItem(item.id)}>
                   <Text style={styles.removeText}>Remove</Text>
@@ -264,16 +288,7 @@ export default function CartScreen() {
                 await Promise.all(
                   items.map(async (item) => {
                     try {
-                      const latestProduct = await api.getProductById(item.id);
-                      syncItemStock(String(item.id), latestProduct.stock ?? 0);
-
-                      if (
-                        typeof latestProduct.stock === "number" &&
-                        latestProduct.stock > 0 &&
-                        item.quantity > latestProduct.stock
-                      ) {
-                        setQty(String(item.id), latestProduct.stock);
-                      }
+                      await refreshItemStock(item);
                     } catch {
                       syncItemStock(String(item.id), 0);
                     }
@@ -319,6 +334,11 @@ const styles = StyleSheet.create({
     color: "#dc2626",
     fontWeight: "700",
     marginBottom: 10,
+  },
+  variantText: {
+    fontSize: 12,
+    color: "#6b7280",
+    marginTop: 3,
   },
   qtyControlDisabled: {
     opacity: 0.4,

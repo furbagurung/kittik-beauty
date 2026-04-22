@@ -32,7 +32,7 @@ const upload = multer({
   storage,
   limits: {
     fileSize: 5 * 1024 * 1024,
-    files: 9,
+    files: 49,
   },
   fileFilter: (_req, file, callback) => {
     if (file.mimetype?.startsWith("image/")) {
@@ -47,6 +47,7 @@ const upload = multer({
 const productUpload = upload.fields([
   { name: "primaryImage", maxCount: 1 },
   { name: "galleryImages", maxCount: 8 },
+  { name: "variantImages", maxCount: 40 },
 ]);
 
 export function handleProductUpload(req, res, next) {

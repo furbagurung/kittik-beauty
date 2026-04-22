@@ -135,6 +135,36 @@ export async function adminLogin(req, res) {
     });
   }
 }
+export async function getCurrentAdmin(req, res) {
+  try {
+    const userId = Number(req.user?.id);
+
+    if (!Number.isInteger(userId)) {
+      return res.status(401).json({ message: "Invalid admin session" });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+      },
+    });
+
+    if (!user || user.role !== "admin") {
+      return res.status(403).json({ message: "Admin access only" });
+    }
+
+    return res.json(user);
+  } catch (error) {
+    return res.status(500).json({
+      message: "Failed to fetch admin session",
+      error: error.message,
+    });
+  }
+}
 export async function getAllUsers(req, res) {
   try {
     const users = await prisma.user.findMany({

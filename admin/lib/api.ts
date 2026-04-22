@@ -1,6 +1,11 @@
-import { getStoredAdminToken } from "@/lib/admin-session";
-
-const API_BASE_URL = "http://localhost:5000/api";
+import { clearAdminSession, getStoredAdminToken } from "@/lib/admin-session";
+import { API_BASE_URL } from "@/lib/api-config";
+import type {
+  ProductMedia,
+  ProductOption,
+  ProductStatus,
+  ProductVariant,
+} from "@/types/product";
 
 export async function apiFetch<T>(
   endpoint: string,
@@ -22,6 +27,10 @@ export async function apiFetch<T>(
   if (!response.ok) {
     const errorData = await response.json().catch(() => null);
 
+    if (token && (response.status === 401 || response.status === 403)) {
+      clearAdminSession();
+    }
+
     throw new Error(
       errorData?.message || `API request failed: ${response.status}`,
     );
@@ -33,13 +42,70 @@ export async function apiFetch<T>(
 export type AdminApiProduct = {
   id: number;
   name: string;
+  title?: string;
+  slug?: string;
   price: number;
   image?: string;
   images?: string[];
+  featuredImage?: string;
+  media?: ProductMedia[];
   category: string;
   stock: number;
+  status: ProductStatus;
   description?: string;
+  productType?: string | null;
+  vendor?: string | null;
+  seoTitle?: string | null;
+  seoDescription?: string | null;
+  tags?: string[];
+  options?: ProductOption[];
+  variants?: ProductVariant[];
+  defaultVariantId?: number | null;
   createdAt: string;
+};
+
+export type ReelStatus = "DRAFT" | "ACTIVE" | "ARCHIVED";
+
+export type AdminApiReelProductTag = {
+  id: number;
+  productId: number;
+  variantId?: number | null;
+  ctaLabel: string;
+  sortOrder: number;
+  product: {
+    id: number;
+    name: string;
+    category?: string | null;
+    price: number;
+    image?: string;
+  };
+  variant?: {
+    id: number;
+    title: string;
+    price: number;
+    image?: string | null;
+  } | null;
+};
+
+export type AdminApiReel = {
+  id: number;
+  title: string;
+  caption: string;
+  videoUrl: string;
+  thumbnailUrl?: string | null;
+  duration?: number | null;
+  status: ReelStatus;
+  featured: boolean;
+  sortOrder: number;
+  creatorName: string;
+  viewCount: number;
+  likeCount: number;
+  saveCount: number;
+  shareCount: number;
+  productClickCount: number;
+  productTags: AdminApiReelProductTag[];
+  createdAt: string;
+  updatedAt: string;
 };
 
 type ProductMutationInput = {
@@ -47,10 +113,39 @@ type ProductMutationInput = {
   price: number;
   category: string;
   stock: number;
+  status: ProductStatus;
   description?: string;
+  image?: string;
   primaryImageFile?: File | null;
   galleryFiles?: File[];
   existingGalleryImages?: string[];
+  options?: ProductOption[];
+  variants?: ProductVariant[];
+  tags?: string[];
+  productType?: string;
+  vendor?: string;
+  seoTitle?: string;
+  seoDescription?: string;
+  variantImageFiles?: Array<{ key: string; file: File }>;
+};
+
+export type ReelMutationInput = {
+  title: string;
+  caption?: string;
+  videoUrl?: string | null;
+  thumbnailUrl?: string | null;
+  videoFile?: File | null;
+  thumbnailFile?: File | null;
+  duration?: number | null;
+  status: ReelStatus;
+  featured: boolean;
+  sortOrder: number;
+  productTags: Array<{
+    productId: number;
+    variantId?: number | null;
+    ctaLabel: string;
+    sortOrder: number;
+  }>;
 };
 
 function buildProductMutationFormData(data: ProductMutationInput) {
@@ -60,7 +155,20 @@ function buildProductMutationFormData(data: ProductMutationInput) {
   formData.append("price", String(data.price));
   formData.append("category", data.category);
   formData.append("stock", String(data.stock));
+  formData.append("status", data.status);
   formData.append("description", data.description ?? "");
+  formData.append("image", data.image ?? "");
+  formData.append("options", JSON.stringify(data.options ?? []));
+  formData.append("variants", JSON.stringify(data.variants ?? []));
+  formData.append("tags", JSON.stringify(data.tags ?? []));
+  formData.append("productType", data.productType ?? "");
+  formData.append("vendor", data.vendor ?? "");
+  formData.append("seoTitle", data.seoTitle ?? "");
+  formData.append("seoDescription", data.seoDescription ?? "");
+  formData.append(
+    "variantImageKeys",
+    JSON.stringify(data.variantImageFiles?.map((item) => item.key) ?? []),
+  );
   formData.append(
     "existingGalleryImages",
     JSON.stringify(data.existingGalleryImages ?? []),
@@ -74,8 +182,40 @@ function buildProductMutationFormData(data: ProductMutationInput) {
     formData.append("galleryImages", file);
   }
 
+  for (const item of data.variantImageFiles ?? []) {
+    formData.append("variantImages", item.file);
+  }
+
   return formData;
 }
+
+function buildReelMutationFormData(data: ReelMutationInput) {
+  const formData = new FormData();
+
+  formData.append("title", data.title);
+  formData.append("caption", data.caption ?? "");
+  formData.append("videoUrl", data.videoUrl ?? "");
+  formData.append("thumbnailUrl", data.thumbnailUrl ?? "");
+  formData.append(
+    "duration",
+    data.duration === null ? "" : String(data.duration ?? ""),
+  );
+  formData.append("status", data.status);
+  formData.append("featured", String(data.featured));
+  formData.append("sortOrder", String(data.sortOrder ?? 0));
+  formData.append("productTags", JSON.stringify(data.productTags ?? []));
+
+  if (data.videoFile) {
+    formData.append("video", data.videoFile);
+  }
+
+  if (data.thumbnailFile) {
+    formData.append("thumbnail", data.thumbnailFile);
+  }
+
+  return formData;
+}
+
 export async function getProducts() {
   return apiFetch<AdminApiProduct[]>("/products");
 }
@@ -87,10 +227,20 @@ export async function createProduct(data: {
   price: number;
   category: string;
   stock: number;
+  status: ProductStatus;
   description?: string;
+  image?: string;
   primaryImageFile?: File | null;
   galleryFiles?: File[];
   existingGalleryImages?: string[];
+  options?: ProductOption[];
+  variants?: ProductVariant[];
+  tags?: string[];
+  productType?: string;
+  vendor?: string;
+  seoTitle?: string;
+  seoDescription?: string;
+  variantImageFiles?: Array<{ key: string; file: File }>;
 }) {
   return apiFetch<AdminApiProduct>(
     "/products",
@@ -108,10 +258,20 @@ export async function updateProduct(
     price: number;
     category: string;
     stock: number;
+    status: ProductStatus;
     description?: string;
+    image?: string;
     primaryImageFile?: File | null;
     galleryFiles?: File[];
     existingGalleryImages?: string[];
+    options?: ProductOption[];
+    variants?: ProductVariant[];
+    tags?: string[];
+    productType?: string;
+    vendor?: string;
+    seoTitle?: string;
+    seoDescription?: string;
+    variantImageFiles?: Array<{ key: string; file: File }>;
   },
 ) {
   return apiFetch<AdminApiProduct>(
@@ -123,9 +283,67 @@ export async function updateProduct(
     getStoredAdminToken() || undefined,
   );
 }
+export async function deleteProduct(id: number) {
+  return apiFetch<{ message: string }>(
+    `/products/${id}`,
+    {
+      method: "DELETE",
+    },
+    getStoredAdminToken() || undefined,
+  );
+}
+
+export async function getReels() {
+  return apiFetch<AdminApiReel[]>(
+    "/reels/admin",
+    undefined,
+    getStoredAdminToken() || undefined,
+  );
+}
+
+export async function getReelById(id: number) {
+  return apiFetch<AdminApiReel>(
+    `/reels/admin/${id}`,
+    undefined,
+    getStoredAdminToken() || undefined,
+  );
+}
+
+export async function createReel(data: ReelMutationInput) {
+  return apiFetch<AdminApiReel>(
+    "/reels",
+    {
+      method: "POST",
+      body: buildReelMutationFormData(data),
+    },
+    getStoredAdminToken() || undefined,
+  );
+}
+
+export async function updateReel(id: number, data: ReelMutationInput) {
+  return apiFetch<AdminApiReel>(
+    `/reels/${id}`,
+    {
+      method: "PUT",
+      body: buildReelMutationFormData(data),
+    },
+    getStoredAdminToken() || undefined,
+  );
+}
+
+export async function deleteReel(id: number) {
+  return apiFetch<{ message: string }>(
+    `/reels/${id}`,
+    {
+      method: "DELETE",
+    },
+    getStoredAdminToken() || undefined,
+  );
+}
+
 export type AdminApiOrderItem = {
   id: number;
-  productId: number;
+  variantId: number;
   name: string;
   price: number;
   quantity: number;
@@ -185,6 +403,15 @@ export async function adminLogin(data: { email: string; password: string }) {
     method: "POST",
     body: JSON.stringify(data),
   });
+}
+export async function getCurrentAdmin(
+  token = getStoredAdminToken() || undefined,
+) {
+  return apiFetch<AdminLoginResponse["user"]>(
+    "/auth/admin/me",
+    undefined,
+    token,
+  );
 }
 export type AdminApiUser = {
   id: number;

@@ -3,6 +3,7 @@
 import { cn } from "@/lib/utils";
 import {
   Box,
+  Clapperboard,
   LayoutGrid,
   PanelLeftClose,
   PanelLeftOpen,
@@ -37,7 +38,10 @@ const sections: NavSection[] = [
   },
   {
     label: "Catalog",
-    items: [{ label: "Products", href: "/products", icon: Box }],
+    items: [
+      { label: "Products", href: "/products", icon: Box },
+      { label: "Reels", href: "/reels", icon: Clapperboard },
+    ],
   },
   {
     label: "Customers",

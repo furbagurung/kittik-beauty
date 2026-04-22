@@ -3,6 +3,7 @@ import {
     adminLogin,
     getAdminStats,
     getAllUsers,
+    getCurrentAdmin,
     getRecentOrders,
     login,
     signup,
@@ -13,6 +14,7 @@ const router = express.Router();
 router.post("/signup", signup);
 router.post("/login", login);
 router.post("/admin/login", adminLogin);
+router.get("/admin/me", protect, isAdmin, getCurrentAdmin);
 router.get("/users", protect, isAdmin, getAllUsers);
 router.get("/admin/stats", protect, isAdmin, getAdminStats);
 router.get("/admin/recent-orders", protect, isAdmin, getRecentOrders);

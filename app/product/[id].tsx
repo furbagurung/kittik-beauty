@@ -46,20 +46,40 @@ export default function ProductDetailsScreen() {
 
   const [loadedImages, setLoadedImages] = useState<Record<string, boolean>>({});
   const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
+  const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>(
+    {},
+  );
 
   const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
 
   const currentProductId = product ? String(product.id) : "";
   const currentCategory = product?.category ?? "";
+  const selectedVariant = useMemo(() => {
+    if (!product?.variants?.length) return null;
+
+    return (
+      product.variants.find((variant) =>
+        variant.selectedOptions.every(
+          (selection) =>
+            selectedOptions[selection.optionName] === selection.value,
+        ),
+      ) ??
+      product.variants.find((variant) => variant.isDefault) ??
+      product.variants[0]
+    );
+  }, [product?.variants, selectedOptions]);
+  const displayPrice = selectedVariant?.price ?? product?.price ?? 0;
+  const displayStock = selectedVariant?.stock ?? product?.stock ?? 0;
+  const displayImage = selectedVariant?.image || product?.image;
   const isInStock =
-    typeof product?.stock === "number" ? product.stock > 0 : true;
+    typeof displayStock === "number" ? displayStock > 0 : true;
 
   const stockText = isInStock ? "In Stock" : "Out of Stock";
 
   const ratingValue =
     typeof product?.rating === "number" ? product.rating.toFixed(1) : "4.8";
 
-  const totalPrice = product ? product.price * qty : 0;
+  const totalPrice = product ? displayPrice * qty : 0;
 
   const descriptionText =
     product?.description?.trim() ||
@@ -68,28 +88,38 @@ export default function ProductDetailsScreen() {
   const galleryImages = useMemo(() => {
     if (!product) return [];
 
-    const rawImages = [product.image, ...(product.images ?? [])];
+    const rawImages = [displayImage, product.image, ...(product.images ?? [])];
     return Array.from(
       new Set(rawImages.filter((item): item is string => Boolean(item))),
     );
-  }, [product]);
+  }, [displayImage, product]);
 
   const galleryData =
     galleryImages.length > 0
       ? galleryImages
-      : product?.image
-        ? [product.image]
+      : displayImage
+        ? [displayImage]
         : [];
 
   useEffect(() => {
     setQty(1);
+    const defaults: Record<string, string> = {};
+    const defaultVariant =
+      product?.variants?.find((variant) => variant.isDefault) ??
+      product?.variants?.[0];
+
+    for (const selection of defaultVariant?.selectedOptions ?? []) {
+      defaults[selection.optionName] = selection.value;
+    }
+
+    setSelectedOptions(defaults);
     setIsAdded(false);
     setShowAddedMessage(false);
     setCurrentImageIndex(0);
     setFullscreenIndex(0);
     setIsGalleryOpen(false);
     setLoadedImages({});
-  }, [product?.id]);
+  }, [product?.id, product?.variants]);
 
   useEffect(() => {
     async function loadProduct() {
@@ -170,17 +200,17 @@ export default function ProductDetailsScreen() {
   useEffect(() => {
     if (!product) return;
 
-    if (typeof product.stock === "number") {
-      if (product.stock <= 0) {
+    if (typeof displayStock === "number") {
+      if (displayStock <= 0) {
         setQty(1);
         return;
       }
 
-      if (qty > product.stock) {
-        setQty(product.stock);
+      if (qty > displayStock) {
+        setQty(displayStock);
       }
     }
-  }, [product?.stock, qty, product]);
+  }, [displayStock, qty, product]);
   const handleDecreaseQty = async () => {
     if (qty === 1) return;
     await Haptics.selectionAsync();
@@ -188,7 +218,7 @@ export default function ProductDetailsScreen() {
   };
 
   const maxAvailableQty =
-    typeof product?.stock === "number" && product.stock > 0 ? product.stock : 1;
+    typeof displayStock === "number" && displayStock > 0 ? displayStock : 1;
 
   const handleIncreaseQty = async () => {
     if (!isInStock) return;
@@ -203,12 +233,16 @@ export default function ProductDetailsScreen() {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     addToCart({
-      id: String(product.id),
+      id: String(selectedVariant?.id ?? product.id),
+      productId: String(product.id),
+      variantId: selectedVariant?.id ? String(selectedVariant.id) : undefined,
+      variantTitle: selectedVariant?.title,
+      selectedOptions: selectedVariant?.selectedOptions ?? [],
       name: product.name,
-      price: product.price,
-      image: product.image,
+      price: displayPrice,
+      image: displayImage ?? "",
       quantity: qty,
-      stock: product.stock ?? 0,
+      stock: displayStock ?? 0,
     });
     setIsAdded(true);
     setShowAddedMessage(true);
@@ -220,12 +254,16 @@ export default function ProductDetailsScreen() {
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
     addToCart({
-      id: String(product.id),
+      id: String(selectedVariant?.id ?? product.id),
+      productId: String(product.id),
+      variantId: selectedVariant?.id ? String(selectedVariant.id) : undefined,
+      variantTitle: selectedVariant?.title,
+      selectedOptions: selectedVariant?.selectedOptions ?? [],
       name: product.name,
-      price: product.price,
-      image: product.image,
+      price: displayPrice,
+      image: displayImage ?? "",
       quantity: qty,
-      stock: product.stock ?? 0,
+      stock: displayStock ?? 0,
     });
     router.push("/checkout");
   };
@@ -238,8 +276,8 @@ export default function ProductDetailsScreen() {
     toggleWishlist({
       id: String(product.id),
       name: product.name,
-      price: product.price,
-      image: product.image,
+      price: displayPrice,
+      image: displayImage ?? "",
       category: product.category ?? "Beauty Essential",
       rating: product.rating ?? 4.8,
     });
@@ -492,16 +530,58 @@ export default function ProductDetailsScreen() {
           </Text>
           <Text style={styles.name}>{product.name}</Text>
 
-          <Text style={styles.price}>{formatPrice(product.price)}</Text>
-          {typeof product.stock === "number" &&
-          product.stock > 0 &&
-          product.stock <= 5 ? (
+          <Text style={styles.price}>{formatPrice(displayPrice)}</Text>
+
+          {product.options?.length ? (
+            <View style={styles.variantSection}>
+              {product.options.map((option) => (
+                <View key={option.name} style={styles.variantOptionGroup}>
+                  <Text style={styles.variantOptionLabel}>{option.name}</Text>
+                  <View style={styles.variantValueRow}>
+                    {option.values.map((value) => {
+                      const isActive =
+                        selectedOptions[option.name] === value.value;
+
+                      return (
+                        <Pressable
+                          key={value.value}
+                          style={[
+                            styles.variantValueButton,
+                            isActive && styles.variantValueButtonActive,
+                          ]}
+                          onPress={() =>
+                            setSelectedOptions((current) => ({
+                              ...current,
+                              [option.name]: value.value,
+                            }))
+                          }
+                        >
+                          <Text
+                            style={[
+                              styles.variantValueText,
+                              isActive && styles.variantValueTextActive,
+                            ]}
+                          >
+                            {value.value}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
+              ))}
+            </View>
+          ) : null}
+
+          {typeof displayStock === "number" &&
+          displayStock > 0 &&
+          displayStock <= 5 ? (
             <Text style={styles.lowStockText}>
-              Only {product.stock} left in stock
+              Only {displayStock} left in stock
             </Text>
           ) : null}
 
-          {typeof product.stock === "number" && product.stock === 0 ? (
+          {typeof displayStock === "number" && displayStock === 0 ? (
             <Text style={styles.outOfStockText}>Currently out of stock</Text>
           ) : null}
           <View style={styles.infoChipsRow}>
@@ -597,13 +677,13 @@ export default function ProductDetailsScreen() {
               <Pressable
                 style={[
                   styles.qtyBtn,
-                  (!isInStock || qty >= maxAvailableQty) &&
+                  (!isInStock || qty <= 1) &&
                     styles.qtyBtnDisabled,
                 ]}
-                onPress={handleIncreaseQty}
-                disabled={!isInStock || qty >= maxAvailableQty}
+                onPress={handleDecreaseQty}
+                disabled={!isInStock || qty <= 1}
               >
-                <Text style={styles.qtyBtnText}>+</Text>
+                <Text style={styles.qtyBtnText}>-</Text>
               </Pressable>
               <Text style={styles.qtyValue}>{qty}</Text>
 
@@ -744,10 +824,10 @@ export default function ProductDetailsScreen() {
           </Text>
           <Text style={styles.footerAmount}>{formatPrice(totalPrice)}</Text>
           <Text style={{ fontSize: 14, marginTop: 4 }}>
-            {product.stock === 0
+            {displayStock === 0
               ? "Out of Stock"
-              : product.stock <= 5
-                ? `Only ${product.stock} left`
+              : displayStock <= 5
+                ? `Only ${displayStock} left`
                 : "In Stock"}
           </Text>
         </View>
@@ -938,6 +1018,48 @@ const styles = StyleSheet.create({
     color: "#b91c1c",
     marginTop: -8,
     marginBottom: 16,
+  },
+  variantSection: {
+    backgroundColor: "#ffffff",
+    borderRadius: 18,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "#FECACA",
+    marginBottom: 16,
+    gap: 14,
+  },
+  variantOptionGroup: {
+    gap: 8,
+  },
+  variantOptionLabel: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#111827",
+  },
+  variantValueRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  variantValueButton: {
+    borderWidth: 1,
+    borderColor: "#FECACA",
+    backgroundColor: "#FEF2F2",
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+  },
+  variantValueButtonActive: {
+    borderColor: "#DC2626",
+    backgroundColor: "#DC2626",
+  },
+  variantValueText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#374151",
+  },
+  variantValueTextActive: {
+    color: "#ffffff",
   },
   imageWrap: {
     position: "relative",

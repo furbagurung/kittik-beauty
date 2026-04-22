@@ -5,6 +5,7 @@ import authRoutes from "./routes/authRoutes.js";
 import orderRoutes from "./routes/orderRoutes.js";
 import paymentRoutes from "./routes/paymentRoutes.js";
 import productRoutes from "./routes/productRoutes.js";
+import reelRoutes from "./routes/reelRoutes.js";
 
 const app = express();
 
@@ -25,6 +26,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/payments", paymentRoutes);
+app.use("/api/reels", reelRoutes);
 app.get("/", (_req, res) => {
   res.json({ message: "Kittik backend is running" });
 });

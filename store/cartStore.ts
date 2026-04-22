@@ -4,6 +4,10 @@ import { createJSONStorage, persist } from "zustand/middleware";
 
 export type CartItem = {
   id: string;
+  productId?: string;
+  variantId?: string;
+  variantTitle?: string;
+  selectedOptions?: { optionName: string; value: string }[];
   name: string;
   price: number;
   image: string;
@@ -24,6 +28,7 @@ type CartStore = {
   totalPrice: () => number;
   setHydrated: (value: boolean) => void;
   syncItemStock: (id: string, stock: number) => void;
+  syncVariantStock: (variantId: string, stock: number) => void;
 };
 
 export const useCartStore = create<CartStore>()(
@@ -36,7 +41,10 @@ export const useCartStore = create<CartStore>()(
 
       addToCart: (item) =>
         set((state) => {
-          const existing = state.items.find((i) => i.id === item.id);
+          const itemKey = item.variantId ?? item.id;
+          const existing = state.items.find(
+            (i) => (i.variantId ?? i.id) === itemKey,
+          );
 
           if (existing) {
             const newQty = existing.quantity + item.quantity;
@@ -44,14 +52,18 @@ export const useCartStore = create<CartStore>()(
             if (newQty > item.stock) {
               return {
                 items: state.items.map((i) =>
-                  i.id === item.id ? { ...i, quantity: item.stock } : i,
+                  (i.variantId ?? i.id) === itemKey
+                    ? { ...i, quantity: item.stock }
+                    : i,
                 ),
               };
             }
 
             return {
               items: state.items.map((i) =>
-                i.id === item.id ? { ...i, quantity: newQty } : i,
+                (i.variantId ?? i.id) === itemKey
+                  ? { ...i, quantity: newQty }
+                  : i,
               ),
             };
           }
@@ -95,6 +107,21 @@ export const useCartStore = create<CartStore>()(
         set((state) => ({
           items: state.items.map((i) => {
             if (i.id !== id) return i;
+
+            return {
+              ...i,
+              stock,
+              quantity:
+                stock <= 0
+                  ? i.quantity
+                  : Math.max(1, Math.min(i.quantity, stock)),
+            };
+          }),
+        })),
+      syncVariantStock: (variantId, stock) =>
+        set((state) => ({
+          items: state.items.map((i) => {
+            if (i.variantId !== variantId) return i;
 
             return {
               ...i,

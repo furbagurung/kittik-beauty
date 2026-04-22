@@ -63,6 +63,31 @@ export default function TabsLayout() {
       />
 
       <Tabs.Screen
+        name="reels"
+        options={{
+          title: "Reels",
+          tabBarStyle: {
+            position: "absolute",
+            height: Platform.OS === "ios" ? 78 : 68,
+            paddingTop: 8,
+            paddingBottom: Platform.OS === "ios" ? 14 : 10,
+            borderTopWidth: 1,
+            borderTopColor: "rgba(255,255,255,0.12)",
+            backgroundColor: "rgba(5,5,5,0.78)",
+            elevation: 0,
+            shadowOpacity: 0,
+          },
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons
+              name={focused ? "play-circle" : "play-circle-outline"}
+              size={23}
+              color={color}
+            />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
         name="cart"
         options={{
           title: "Cart",

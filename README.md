@@ -1,6 +1,6 @@
 # Kittik Beauty
 
-Kittik Beauty is a small ecommerce monorepo with three active surfaces:
+Kittik Beauty is an ecommerce monorepo with three active surfaces:
 
 - a buyer-facing Expo Router mobile app in the repository root
 - an Express API with Prisma and MariaDB/MySQL
@@ -13,12 +13,13 @@ Additional documentation:
 
 ## What Is In The Repo
 
-### Buyer app
+### Buyer App
 
-The Expo app currently supports:
+The Expo app supports:
 
-- signup and login against the backend
+- customer signup and login
 - product listing and product detail screens
+- variant-aware product detail and cart data
 - cart, wishlist, saved addresses, and persisted checkout details
 - authenticated order creation, order history, and eligible order cancellation
 - cash on delivery checkout
@@ -26,29 +27,37 @@ The Expo app currently supports:
 
 ### Backend API
 
-The Express app currently exposes:
+The Express app exposes:
 
 - health check routes
 - customer signup and login
-- admin login, admin stats, recent orders, and user listing
+- admin login and current-admin session validation
+- admin stats, recent orders, and user listing
 - public product read routes plus admin-protected product write routes
-- inventory-aware order creation, customer cancellation, detail fetch, and admin status updates
+- Shopify-style product storage with media, options, option values, variants, tags, and variant selections
+- inventory-aware order creation using product variants
+- customer cancellation, order detail fetch, and admin status updates
 - eSewa initiate, redirect, callback, and verify routes
 
-### Admin dashboard
+### Admin Dashboard
 
-The Next.js dashboard currently includes:
+The Next.js dashboard includes:
 
+- production-style admin session bootstrap and protected route gating
 - admin login
 - dashboard stats and recent orders
-- product list, create, and edit screens
+- product list, create, edit, and delete screens
+- unified Shopify-style product editor with title, description, media, category, price, stock, status, vendor, type, tags, and SEO fields
+- product option builder and generated variants table
+- variant row selection, bulk price/stock edits, per-variant images, default variant selection, and variant deletion
+- Sonner toast feedback and shadcn/Radix confirmation dialogs
 - order list and order detail with status updates
 - customer list
-- a placeholder settings page
+- placeholder settings page
 
 ## Tech Stack
 
-### Buyer app
+### Buyer App
 
 - Expo SDK 54
 - React 19
@@ -66,6 +75,7 @@ The Next.js dashboard currently includes:
 - MariaDB / MySQL
 - JWT auth
 - bcryptjs
+- multer for product media uploads
 
 ### Admin
 
@@ -73,10 +83,12 @@ The Next.js dashboard currently includes:
 - React 19
 - TypeScript
 - Tailwind CSS 4
+- shadcn/ui-style components
+- Sonner toast notifications
 
 ## Quick Start
 
-### 1. Install dependencies
+### 1. Install Dependencies
 
 Install the root app and API dependencies:
 
@@ -91,7 +103,7 @@ cd admin
 npm install
 ```
 
-### 2. Configure environment
+### 2. Configure Environment
 
 Create a root `.env` file, or copy `.env.sample`, with at least:
 
@@ -111,15 +123,15 @@ Required eSewa config for backend payment flows:
 Important setup notes:
 
 - Prisma migrations read `DATABASE_URL` from [`prisma.config.ts`](./prisma.config.ts).
-- The backend now expects all listed `ESEWA_*` variables to be present at startup.
+- The backend expects all listed `ESEWA_*` variables to be present at startup.
 - The runtime Prisma adapter in [`src/config/prisma.js`](./src/config/prisma.js) is still hardcoded to a local MariaDB instance.
 - The seed script in [`prisma/seed.js`](./prisma/seed.js) is also hardcoded to the same local MariaDB instance.
 - The mobile API base URL is currently hardcoded in [`services/api.ts`](./services/api.ts).
-- The admin API base URL is currently hardcoded in [`admin/lib/api.ts`](./admin/lib/api.ts).
+- The admin API base URL is currently hardcoded in [`admin/lib/api-config.ts`](./admin/lib/api-config.ts).
 
 Until configuration is centralized, keep those values aligned with your local environment.
 
-### 3. Apply migrations and seed data
+### 3. Apply Migrations And Seed Data
 
 Run Prisma migrations from the repo root:
 
@@ -133,7 +145,7 @@ Seed demo products:
 npm run seed
 ```
 
-### 4. Start the services
+### 4. Start The Services
 
 Start the backend API:
 
@@ -169,17 +181,18 @@ Customer auth routes:
 Admin auth routes:
 
 - `POST /api/auth/admin/login`
+- `GET /api/auth/admin/me`
 - `GET /api/auth/users`
 - `GET /api/auth/admin/stats`
 - `GET /api/auth/admin/recent-orders`
 
 Admin-only backend routes require a JWT whose payload contains `role: "admin"`.
 
-To use the admin dashboard end-to-end, you need a database user whose `role` is `admin`. The dashboard stores the returned token in `localStorage` as `adminToken`.
+The admin dashboard persists `adminToken` and `adminUser` in `localStorage`, then validates the stored token through `GET /api/auth/admin/me` during session bootstrap.
 
 ## Main API Surface
 
-### Public routes
+### Public Routes
 
 - `GET /api/health`
 - `GET /api/products`
@@ -190,7 +203,7 @@ To use the admin dashboard end-to-end, you need a database user whose `role` is 
 - `GET /api/payments/esewa/redirect/:transactionUuid`
 - `ALL /api/payments/esewa/callback/:transactionUuid`
 
-### Authenticated customer routes
+### Authenticated Customer Routes
 
 - `GET /api/orders`
 - `GET /api/orders/:id`
@@ -199,31 +212,45 @@ To use the admin dashboard end-to-end, you need a database user whose `role` is 
 - `POST /api/payments/esewa/initiate`
 - `POST /api/payments/esewa/verify`
 
-### Admin-protected routes
+### Admin-Protected Routes
 
+- `GET /api/auth/admin/me`
+- `GET /api/auth/users`
+- `GET /api/auth/admin/stats`
+- `GET /api/auth/admin/recent-orders`
 - `POST /api/products`
 - `PUT /api/products/:id`
 - `PATCH /api/products/:id`
 - `DELETE /api/products/:id`
 - `PATCH /api/orders/:id/status`
-- `GET /api/auth/users`
-- `GET /api/auth/admin/stats`
-- `GET /api/auth/admin/recent-orders`
+
+## Product Catalog Summary
+
+Products use normalized Shopify-style storage:
+
+- `Product` stores product-level content, status, category, vendor, product type, SEO, tags, and featured image.
+- `ProductMedia` stores ordered images/videos.
+- `ProductOption` and `ProductOptionValue` store option sets such as Size, Shade, or Color.
+- `ProductVariant` stores price, stock, SKU, image, inventory settings, and default-variant state.
+- `VariantOptionSelection` connects each variant to its selected option values.
+- `OrderItem.variantId` points to the purchased variant.
+
+Product responses remain backward-compatible for older UI surfaces by returning flat fields such as `name`, `price`, `stock`, `image`, and `images` alongside normalized `media`, `options`, and `variants`.
 
 ## Payment Flow Summary
 
-### Cash on delivery
+### Cash On Delivery
 
 1. The buyer app creates an order with `paymentMethod: "cod"`.
-2. The backend validates stock and decrements product inventory inside the order transaction.
+2. The backend resolves each item to a product variant, validates stock, and decrements variant inventory inside the order transaction.
 3. The backend stores the order with status `placed`.
-4. If the order is later cancelled, stock is restored once and `stockRestored` is marked on the order.
+4. If the order is later cancelled, variant stock is restored once and `stockRestored` is marked on the order.
 5. The app clears the cart and routes to the success screen.
 
 ### eSewa
 
 1. The buyer app creates an order with `paymentMethod: "esewa"`.
-2. The backend validates stock, decrements inventory, and stores the order with status `pending_payment`.
+2. The backend validates variant stock, decrements inventory, and stores the order with status `pending_payment`.
 3. The app calls `POST /api/payments/esewa/initiate`.
 4. The backend signs an eSewa payload and returns a backend-hosted redirect URL.
 5. [`app/payment-confirmation.tsx`](./app/payment-confirmation.tsx) opens that URL inside a `WebView`.
@@ -231,7 +258,7 @@ To use the admin dashboard end-to-end, you need a database user whose `role` is 
 7. eSewa returns through the backend callback route.
 8. The app intercepts the callback URL and calls `POST /api/payments/esewa/verify`.
 9. The backend verifies the callback payload and remote transaction status, then marks the order as `paid`.
-10. Failed or incomplete eSewa payments are marked as `payment_failed`, and reserved stock is restored.
+10. Failed or incomplete eSewa payments are marked as `payment_failed`, and reserved variant stock is restored.
 
 ### Khalti
 
@@ -244,7 +271,7 @@ app/                    Expo Router routes
 components/             Shared mobile UI
 services/               Mobile API and payment clients
 store/                  Zustand state stores
-types/                  Shared mobile types
+types/                  Shared mobile/admin product types
 src/                    Express API
 prisma/                 Prisma schema, migrations, and seed data
 docs/                   Project documentation
@@ -255,13 +282,13 @@ postman/                Repo-local Postman collections and globals
 
 ## Current Limitations
 
-- The buyer app and admin app both use hardcoded API base URLs.
+- The buyer app and admin app still use hardcoded API base URLs.
 - Prisma runtime configuration is split between `DATABASE_URL` and hardcoded adapter values.
 - Pending eSewa sessions are stored in memory and are lost on process restart.
-- The backend currently fails fast at startup if required `ESEWA_*` variables are missing.
+- The backend fails fast at startup if required `ESEWA_*` variables are missing.
 - Khalti is not implemented beyond placeholder client code.
 - The admin settings page is presentational only.
-- Postman collections for payment endpoints are not committed yet.
+- Product variant editing is implemented in admin, but advanced SKU/barcode/weight editing is still limited.
 
 ## Verification
 
@@ -269,4 +296,5 @@ Useful local checks:
 
 - `npm run lint`
 - `npx tsc --noEmit`
+- `cd admin && npm run build`
 - `cd admin && npm run lint`

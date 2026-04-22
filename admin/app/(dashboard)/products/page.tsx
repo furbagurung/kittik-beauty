@@ -1,4 +1,5 @@
 import ProductsTable from "@/components/products/ProductsTable";
+import ProductSuccessToast from "@/components/products/ProductSuccessToast";
 import Notice from "@/components/shared/Notice";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -39,12 +40,7 @@ export default async function ProductsPage({
         }
       />
 
-      {success === "created" ? (
-        <Notice tone="success" message="Product created successfully." />
-      ) : null}
-      {success === "updated" ? (
-        <Notice tone="info" message="Product updated successfully." />
-      ) : null}
+      <ProductSuccessToast success={success} />
       {errorMessage ? <Notice tone="danger" message={errorMessage} /> : null}
 
       <ProductsTable products={products} />

@@ -170,13 +170,91 @@ export async function deleteManagedImageFiles(values = []) {
 }
 
 export function buildProductResponse(product, req) {
-  const galleryImages = normalizeStoredGalleryImages(product.images, req)
+  const media = Array.isArray(product.media)
+    ? [...product.media].sort((left, right) => left.position - right.position)
+    : [];
+  const variants = Array.isArray(product.variants)
+    ? [...product.variants].sort((left, right) => left.position - right.position)
+    : [];
+  const defaultVariant =
+    variants.find((variant) => variant.isDefault) ?? variants[0] ?? null;
+  const featuredImage =
+    product.featuredImage ?? defaultVariant?.image ?? media[0]?.url ?? null;
+  const mediaImages = media
+    .map((item) => item.url)
+    .filter(Boolean);
+  const gallerySource = mediaImages.length
+    ? mediaImages.filter((item) => item !== featuredImage)
+    : normalizeStoredGalleryImages(product.images, req);
+  const galleryImages = gallerySource
     .map((value) => buildPublicImageUrl(value, req))
     .filter(Boolean);
+  const stock = variants.reduce((sum, variant) => sum + (variant.stock ?? 0), 0);
+  const variantStatuses = variants.map((variant) => variant.status);
+  const allVariantsOutOfStock =
+    variants.length > 0 &&
+    variantStatuses.every((status) => status === "OUT_OF_STOCK");
+  const compatibilityStatus =
+    allVariantsOutOfStock || stock === 0
+      ? "Out of Stock"
+      : product.status === "ACTIVE"
+        ? "Active"
+        : product.status === "ARCHIVED"
+          ? "Archived"
+          : "Draft";
+  const options = Array.isArray(product.options)
+    ? [...product.options]
+        .sort((left, right) => left.position - right.position)
+        .map((option) => ({
+          id: option.id,
+          name: option.name,
+          position: option.position,
+          values: [...(option.values ?? [])]
+            .sort((left, right) => left.position - right.position)
+            .map((value) => ({
+              id: value.id,
+              optionId: value.optionId,
+              value: value.value,
+              position: value.position,
+            })),
+        }))
+    : [];
+  const normalizedVariants = variants.map((variant) => ({
+    ...variant,
+    selectedOptions: [...(variant.selections ?? [])]
+      .sort((left, right) => left.option.position - right.option.position)
+      .map((selection) => ({
+        optionId: selection.optionId,
+        optionName: selection.option.name,
+        optionValueId: selection.optionValueId,
+        value: selection.optionValue.value,
+      })),
+    selections: undefined,
+  }));
+  const publicMedia = media.map((item) => ({
+    ...item,
+    url: buildPublicImageUrl(item.url, req) || item.url,
+  }));
 
   return {
     ...product,
-    image: buildPublicImageUrl(product.image, req) || undefined,
+    name: product.title,
+    title: product.title,
+    image: buildPublicImageUrl(featuredImage, req) || undefined,
     images: galleryImages,
+    price: defaultVariant?.price ?? 0,
+    stock,
+    status: compatibilityStatus,
+    defaultVariantId: defaultVariant?.id ?? null,
+    featuredImage: buildPublicImageUrl(featuredImage, req) || undefined,
+    media: publicMedia,
+    options,
+    variants: normalizedVariants.map((variant) => ({
+      ...variant,
+      image: buildPublicImageUrl(variant.image, req) || variant.image,
+    })),
+    tags: Array.isArray(product.tags)
+      ? product.tags.map((tag) => tag.value)
+      : [],
   };
 }
