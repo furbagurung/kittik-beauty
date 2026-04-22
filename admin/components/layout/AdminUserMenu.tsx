@@ -1,10 +1,10 @@
 "use client";
 
 import { clearAdminSession, type AdminUser } from "@/lib/admin-session";
+import { useTheme } from "@/components/theme-provider";
 import { ChevronDown, LogOut, MonitorCog, Moon, Settings, Sun } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useTheme } from "next-themes";
 
 import {
   DropdownMenu,
@@ -30,6 +30,10 @@ function getInitials(name: string) {
     .slice(0, 2)
     .join("")
     .toUpperCase();
+}
+
+function isTheme(value: string): value is "light" | "dark" | "system" {
+  return value === "light" || value === "dark" || value === "system";
 }
 
 export default function AdminUserMenu({ user }: AdminUserMenuProps) {
@@ -96,7 +100,11 @@ export default function AdminUserMenu({ user }: AdminUserMenuProps) {
 
         <DropdownMenuRadioGroup
           value={theme ?? "light"}
-          onValueChange={setTheme}
+          onValueChange={(value) => {
+            if (isTheme(value)) {
+              setTheme(value);
+            }
+          }}
         >
           <DropdownMenuRadioItem value="light">
             <Sun className="size-4" strokeWidth={1.8} />

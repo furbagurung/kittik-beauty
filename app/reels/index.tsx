@@ -323,27 +323,29 @@ export default function ReelsScreen() {
   const renderItem = useCallback(
     ({ item, target }: ListRenderItemInfo<Reel>) => {
       if (target !== "Cell") {
-        return <View style={{ height: screenHeight }} />;
+        return <View style={[styles.reelPage, { height: screenHeight }]} />;
       }
 
       const activeIndex = reels.findIndex((reel) => reel.id === activeReelId);
       const currentIndex = reels.findIndex((reel) => reel.id === item.id);
 
       return (
-        <ReelPlayerCard
-          bottomInset={tabBarHeight}
-          height={screenHeight}
-          isActive={item.id === activeReelId}
-          isMuted={isMuted}
-          preload={currentIndex === activeIndex + 1}
-          onLike={handleLike}
-          onMuteToggle={handleMuteToggle}
-          onSave={handleSave}
-          onShare={handleShare}
-          onShop={handleShop}
-          reel={item}
-          screenFocused={screenFocused}
-        />
+        <View style={[styles.reelPage, { height: screenHeight }]}>
+          <ReelPlayerCard
+            bottomInset={tabBarHeight}
+            height={screenHeight}
+            isActive={item.id === activeReelId}
+            isMuted={isMuted}
+            preload={currentIndex === activeIndex + 1}
+            onLike={handleLike}
+            onMuteToggle={handleMuteToggle}
+            onSave={handleSave}
+            onShare={handleShare}
+            onShop={handleShop}
+            reel={item}
+            screenFocused={screenFocused}
+          />
+        </View>
       );
     },
     [
@@ -407,8 +409,11 @@ export default function ReelsScreen() {
         snapToAlignment="start"
         decelerationRate="fast"
         disableIntervalMomentum
+        bounces={false}
+        overScrollMode="never"
         showsVerticalScrollIndicator={false}
         contentInsetAdjustmentBehavior="never"
+        contentContainerStyle={styles.listContent}
         onViewableItemsChanged={onViewableItemsChanged.current}
         viewabilityConfig={VIEWABILITY_CONFIG}
         refreshing={isRefreshing}
@@ -457,6 +462,13 @@ const styles = StyleSheet.create({
     color: "#ffffff",
     fontSize: 14,
     fontWeight: "700",
+  },
+  listContent: {
+    paddingBottom: 0,
+  },
+  reelPage: {
+    backgroundColor: "#050505",
+    overflow: "hidden",
   },
   retryButton: {
     marginTop: 6,

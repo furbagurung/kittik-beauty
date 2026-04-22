@@ -1,15 +1,15 @@
 "use client";
 
-import Kbd from "@/components/shared/Kbd";
-import Notice from "@/components/shared/Notice";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { bootstrapAdminSession, setAdminSession } from "@/lib/admin-session";
-import { adminLogin } from "@/lib/api";
+import { adminLogin, getCurrentAdmin } from "@/lib/api";
 import { useAdminSession } from "@/lib/use-admin-session";
-import { ArrowRight, ShieldCheck, Store, Zap } from "lucide-react";
+import { ShieldCheck, Store, Zap } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+
+type RuntimeErrorEntry = NonNullable<
+  Window["__kittikAdminRuntimeErrors"]
+>[number];
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -19,9 +19,42 @@ export default function AdminLoginPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-  const [clock, setClock] = useState(() => formatClock(new Date()));
+  const [interactiveStatus, setInteractiveStatus] = useState("server rendered");
+  const [debugMessages, setDebugMessages] = useState<string[]>([]);
+  const [clock, setClock] = useState("00:00:00");
 
   useEffect(() => {
+    setInteractiveStatus("hydrated");
+    pushDebug("hydrated");
+  }, []);
+
+  useEffect(() => {
+    function reportRuntimeError(entry: RuntimeErrorEntry) {
+      pushDebug(`runtime ${entry.type}: ${entry.message}`);
+    }
+
+    for (const entry of window.__kittikAdminRuntimeErrors ?? []) {
+      reportRuntimeError(entry);
+    }
+
+    function handleRuntimeError(
+      event: WindowEventMap["kittik-admin-runtime-error"],
+    ) {
+      reportRuntimeError(event.detail);
+    }
+
+    window.addEventListener("kittik-admin-runtime-error", handleRuntimeError);
+
+    return () => {
+      window.removeEventListener(
+        "kittik-admin-runtime-error",
+        handleRuntimeError,
+      );
+    };
+  }, []);
+
+  useEffect(() => {
+    setClock(formatClock(new Date()));
     const id = setInterval(() => setClock(formatClock(new Date())), 1000);
     return () => clearInterval(id);
   }, []);
@@ -36,30 +69,62 @@ export default function AdminLoginPage() {
     }
   }, [router, status]);
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  function pushDebug(message: string) {
+    console.debug(`[admin-login] ${message}`);
+    setDebugMessages((messages) => [...messages.slice(-10), message]);
+  }
+
+  async function runLogin() {
+    if (loading) {
+      pushDebug("submit ignored: already loading");
+      return;
+    }
+
     setErrorMessage("");
+    setInteractiveStatus("button clicked");
+    pushDebug("button clicked");
+    pushDebug(
+      `credentials present: email=${Boolean(email)}, password=${Boolean(password)}`,
+    );
 
     if (!email || !password) {
       setErrorMessage("Enter an email and password to continue.");
+      pushDebug("validation blocked: missing credentials");
       return;
     }
 
     try {
       setLoading(true);
+      pushDebug("calling login");
       const response = await adminLogin({ email, password });
+      pushDebug("login ok");
+      pushDebug("calling admin me");
+      const adminUser = await getCurrentAdmin(response.token);
+      pushDebug(`admin me ok: ${adminUser.email}`);
       setAdminSession({
         token: response.token,
-        user: response.user,
+        user: adminUser,
       });
+      pushDebug(
+        `storage persisted: ${Boolean(localStorage.getItem("admin_token"))}`,
+      );
+      setInteractiveStatus("done");
+      pushDebug("done");
       router.replace("/");
     } catch (error) {
+      console.error("[admin-login] failed", error);
+      setInteractiveStatus("error");
+      pushDebug("error");
       setErrorMessage(
         error instanceof Error ? error.message : "Admin login failed.",
       );
     } finally {
       setLoading(false);
     }
+  }
+
+  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
   }
 
   return (
@@ -126,83 +191,65 @@ export default function AdminLoginPage() {
           </p>
 
           <form onSubmit={handleSubmit} className="mt-8 grid gap-5">
-            <Field
-              label="Email"
-              hint="Registered admin address"
-              input={
-                <Input
-                  type="email"
-                  autoComplete="email"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  placeholder="you@kittik.com"
-                />
-              }
-            />
-            <Field
-              label="Password"
-              hint={
-                <button
-                  type="button"
-                  className="text-xs font-medium text-muted-foreground transition hover:text-foreground"
-                >
-                  forgot?
-                </button>
-              }
-              input={
-                <Input
-                  type="password"
-                  autoComplete="current-password"
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  placeholder="Enter your password"
-                />
-              }
-            />
+            <label className="grid gap-2">
+              <span className="text-sm font-medium text-foreground">Email</span>
+              <input
+                type="email"
+                autoComplete="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                placeholder="admin@kittik.com"
+                className="h-10 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground outline-none focus:border-primary"
+              />
+            </label>
 
-            {errorMessage ? <Notice tone="danger" message={errorMessage} /> : null}
-
-            <Button type="submit" size="lg" disabled={loading} className="w-full">
-              {loading ? "Authenticating..." : "Continue"}
-              {!loading ? (
-                <ArrowRight
-                  className="size-4 transition-transform group-hover/button:translate-x-0.5"
-                  strokeWidth={2}
-                />
-              ) : null}
-            </Button>
-
-            <div className="flex items-center justify-between border-t border-hairline pt-4 text-xs text-muted-foreground">
-              <span>Press</span>
-              <span className="flex items-center gap-1.5">
-                <Kbd>Enter</Kbd>
-                <span>to sign in</span>
+            <label className="grid gap-2">
+              <span className="text-sm font-medium text-foreground">
+                Password
               </span>
+              <input
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                placeholder="Admin123@"
+                className="h-10 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground outline-none focus:border-primary"
+              />
+            </label>
+
+            {errorMessage ? (
+              <div className="rounded-lg border border-[color:color-mix(in_oklab,var(--destructive)_24%,transparent)] bg-[color:color-mix(in_oklab,var(--destructive)_10%,var(--card))] px-3.5 py-2.5 text-sm font-medium text-[color:var(--destructive)]">
+                {errorMessage}
+              </div>
+            ) : null}
+
+            <button
+              type="button"
+              disabled={loading}
+              onClick={() => void runLogin()}
+              className="inline-flex h-10 w-full items-center justify-center rounded-lg border border-primary bg-primary px-4 text-sm font-medium text-primary-foreground shadow-[0_1px_0_0_var(--primary-strong)] transition hover:bg-[color:var(--primary-strong)] disabled:pointer-events-none disabled:opacity-50"
+            >
+              {loading ? "Authenticating..." : "Continue"}
+            </button>
+
+            <div className="rounded-lg border border-hairline bg-secondary/45 p-3 text-xs text-muted-foreground">
+              <div className="mb-2 font-medium text-foreground">
+                Interactive status: {interactiveStatus}
+              </div>
+              {debugMessages.length ? (
+                <ol className="grid gap-1">
+                  {debugMessages.map((message, index) => (
+                    <li key={`${message}-${index}`}>{message}</li>
+                  ))}
+                </ol>
+              ) : (
+                <div>waiting for hydration</div>
+              )}
             </div>
           </form>
         </div>
       </section>
     </div>
-  );
-}
-
-function Field({
-  label,
-  hint,
-  input,
-}: {
-  label: string;
-  hint?: React.ReactNode;
-  input: React.ReactNode;
-}) {
-  return (
-    <label className="grid gap-2">
-      <span className="flex items-center justify-between gap-3">
-        <span className="text-sm font-medium text-foreground">{label}</span>
-        {hint ? <span>{hint}</span> : null}
-      </span>
-      {input}
-    </label>
   );
 }
 

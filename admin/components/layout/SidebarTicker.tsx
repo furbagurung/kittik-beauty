@@ -1,6 +1,7 @@
 "use client";
 
 import { formatClockTime } from "@/lib/format";
+import { API_BASE_URL } from "@/lib/api-config";
 import { useEffect, useState } from "react";
 
 export default function SidebarTicker({ collapsed }: { collapsed?: boolean }) {
@@ -41,7 +42,7 @@ export default function SidebarTicker({ collapsed }: { collapsed?: boolean }) {
           </span>
         </div>
         <div className="mt-2 font-mono text-[0.66rem] text-muted-foreground">
-          kittik.api / localhost:5000
+          kittik.api / {API_BASE_URL}
         </div>
       </div>
     </div>

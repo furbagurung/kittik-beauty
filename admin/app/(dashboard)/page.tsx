@@ -18,6 +18,7 @@ import {
   type AdminDashboardStats,
   type AdminRecentOrder,
 } from "@/lib/api";
+import { API_BASE_URL } from "@/lib/api-config";
 import {
   formatCompactCurrency,
   formatNumber,
@@ -272,7 +273,7 @@ export default function DashboardPage() {
 
           <SectionCard title="System status" kicker="Environment">
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <HealthTile label="API" value="localhost:5000" />
+              <HealthTile label="API" value={API_BASE_URL} />
               <HealthTile label="Build" value="v0.1.0" />
               <HealthTile
                 label="Last sync"

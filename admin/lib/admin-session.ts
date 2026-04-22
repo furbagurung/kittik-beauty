@@ -1,7 +1,9 @@
 import { API_BASE_URL } from "@/lib/api-config";
 
-const ADMIN_TOKEN_KEY = "adminToken";
-const ADMIN_USER_KEY = "adminUser";
+const ADMIN_TOKEN_KEY = "admin_token";
+const ADMIN_USER_KEY = "admin_user";
+const LEGACY_ADMIN_TOKEN_KEY = "adminToken";
+const LEGACY_ADMIN_USER_KEY = "adminUser";
 const ADMIN_SESSION_CHANGE_EVENT = "admin:user-change";
 const SESSION_VALIDATION_TIMEOUT_MS = 8000;
 
@@ -44,6 +46,13 @@ let bootstrapRunId = 0;
 let sessionVersion = 0;
 
 const listeners = new Set<() => void>();
+
+function debugAdminSession(
+  message: string,
+  details?: Record<string, unknown>,
+) {
+  console.debug(`[admin-auth] ${message}`, details ?? {});
+}
 
 function isAdminUser(value: unknown): value is AdminUser {
   if (!value || typeof value !== "object") return false;
@@ -103,13 +112,33 @@ function setSnapshot(next: AdminSessionSnapshot) {
 function clearPersistedSession() {
   writeStorageValue(ADMIN_TOKEN_KEY, null);
   writeStorageValue(ADMIN_USER_KEY, null);
+  writeStorageValue(LEGACY_ADMIN_TOKEN_KEY, null);
+  writeStorageValue(LEGACY_ADMIN_USER_KEY, null);
 }
 
 function readPersistedSession(): AdminSession {
+  const token =
+    readStorageValue(ADMIN_TOKEN_KEY) ?? readStorageValue(LEGACY_ADMIN_TOKEN_KEY);
+  const user =
+    parseAdminUser(readStorageValue(ADMIN_USER_KEY)) ??
+    parseAdminUser(readStorageValue(LEGACY_ADMIN_USER_KEY));
+
   return {
-    token: readStorageValue(ADMIN_TOKEN_KEY),
-    user: parseAdminUser(readStorageValue(ADMIN_USER_KEY)),
+    token,
+    user,
   };
+}
+
+function persistAdminSession({ token, user }: AdminSession) {
+  if (!token || !user) {
+    clearPersistedSession();
+    return;
+  }
+
+  writeStorageValue(ADMIN_TOKEN_KEY, token);
+  writeStorageValue(ADMIN_USER_KEY, JSON.stringify(user));
+  writeStorageValue(LEGACY_ADMIN_TOKEN_KEY, null);
+  writeStorageValue(LEGACY_ADMIN_USER_KEY, null);
 }
 
 async function validateAdminToken(token: string) {
@@ -118,9 +147,15 @@ async function validateAdminToken(token: string) {
     () => controller.abort(),
     SESSION_VALIDATION_TIMEOUT_MS,
   );
+  const requestUrl = `${API_BASE_URL}/auth/admin/me`;
 
   try {
-    const response = await fetch(`${API_BASE_URL}/auth/admin/me`, {
+    debugAdminSession("restore validate start", {
+      hasToken: Boolean(token),
+      requestUrl,
+    });
+
+    const response = await fetch(requestUrl, {
       headers: {
         Authorization: `Bearer ${token}`,
       },
@@ -128,6 +163,11 @@ async function validateAdminToken(token: string) {
     });
 
     if (!response.ok) {
+      console.error("[admin-auth] restore validate failed", {
+        requestUrl,
+        status: response.status,
+      });
+
       throw new Error(
         response.status === 401 || response.status === 403
           ? "Invalid admin session."
@@ -141,11 +181,23 @@ async function validateAdminToken(token: string) {
       throw new Error("Invalid admin session response.");
     }
 
+    debugAdminSession("restore validate success", {
+      userEmail: data.email,
+    });
+
     return data;
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
       throw new Error("Admin session validation timed out.");
     }
+
+    console.error("[admin-auth] restore validate error", {
+      requestUrl,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Unknown admin session validation error.",
+    });
 
     throw error;
   } finally {
@@ -175,7 +227,9 @@ export function subscribeAdminSession(callback: () => void) {
       event.storageArea === window.localStorage &&
       (!event.key ||
         event.key === ADMIN_TOKEN_KEY ||
-        event.key === ADMIN_USER_KEY)
+        event.key === ADMIN_USER_KEY ||
+        event.key === LEGACY_ADMIN_TOKEN_KEY ||
+        event.key === LEGACY_ADMIN_USER_KEY)
     ) {
       bootstrapPromise = null;
       bootstrapToken = null;
@@ -199,8 +253,12 @@ export function setAdminSession({ token, user }: AdminSession) {
     return clearAdminSession();
   }
 
-  writeStorageValue(ADMIN_TOKEN_KEY, token);
-  writeStorageValue(ADMIN_USER_KEY, JSON.stringify(user));
+  debugAdminSession("session stored after login", {
+    hasToken: Boolean(token),
+    userEmail: user.email,
+  });
+
+  persistAdminSession({ token, user });
   sessionVersion += 1;
   bootstrapRunId += 1;
   bootstrapPromise = null;
@@ -232,7 +290,11 @@ export function clearAdminSession() {
 }
 
 export function getStoredAdminToken() {
-  return snapshot.token ?? readStorageValue(ADMIN_TOKEN_KEY);
+  return (
+    snapshot.token ??
+    readStorageValue(ADMIN_TOKEN_KEY) ??
+    readStorageValue(LEGACY_ADMIN_TOKEN_KEY)
+  );
 }
 
 export async function bootstrapAdminSession({
@@ -243,11 +305,19 @@ export async function bootstrapAdminSession({
   const persisted = readPersistedSession();
   const token = persisted.token;
 
+  debugAdminSession("restore start", {
+    hasToken: Boolean(token),
+    hasCachedUser: Boolean(persisted.user),
+    force,
+    status: snapshot.status,
+  });
+
   if (!force && snapshot.status === "authenticated" && snapshot.token === token) {
     return snapshot;
   }
 
   if (!token) {
+    debugAdminSession("restore no token");
     clearPersistedSession();
     sessionVersion += 1;
     bootstrapRunId += 1;
@@ -270,6 +340,10 @@ export async function bootstrapAdminSession({
   const runSessionVersion = sessionVersion;
   bootstrapRunId = runId;
   bootstrapToken = token;
+  debugAdminSession("restore hydrating", {
+    runId,
+    hasCachedUser: Boolean(persisted.user),
+  });
   setSnapshot({
     token,
     user: persisted.user,
@@ -278,17 +352,31 @@ export async function bootstrapAdminSession({
     error: null,
   });
 
-  bootstrapPromise = validateAdminToken(token)
-    .then((user) => {
+  bootstrapPromise = (async () => {
+    const isCurrentBootstrap = () =>
+      bootstrapRunId === runId &&
+      sessionVersion === runSessionVersion &&
+      (readStorageValue(ADMIN_TOKEN_KEY) ??
+        readStorageValue(LEGACY_ADMIN_TOKEN_KEY)) === token;
+
+    try {
+      const user = await validateAdminToken(token);
+
       if (
         bootstrapRunId !== runId ||
         sessionVersion !== runSessionVersion ||
-        readStorageValue(ADMIN_TOKEN_KEY) !== token
+        (readStorageValue(ADMIN_TOKEN_KEY) ??
+          readStorageValue(LEGACY_ADMIN_TOKEN_KEY)) !== token
       ) {
+        debugAdminSession("restore stale result ignored", { runId });
         return snapshot;
       }
 
-      writeStorageValue(ADMIN_USER_KEY, JSON.stringify(user));
+      persistAdminSession({ token, user });
+      debugAdminSession("restore success", {
+        runId,
+        userEmail: user.email,
+      });
       return setSnapshot({
         token,
         user,
@@ -296,18 +384,23 @@ export async function bootstrapAdminSession({
         hasHydrated: true,
         error: null,
       });
-    })
-    .catch((error) => {
-      if (
-        bootstrapRunId !== runId ||
-        sessionVersion !== runSessionVersion ||
-        readStorageValue(ADMIN_TOKEN_KEY) !== token
-      ) {
+    } catch (error) {
+      if (!isCurrentBootstrap()) {
+        debugAdminSession("restore stale failure ignored", { runId });
         return snapshot;
       }
 
+      console.error("[admin-auth] restore failed", {
+        runId,
+        message:
+          error instanceof Error
+            ? error.message
+            : "Failed to restore admin session.",
+      });
+
       clearPersistedSession();
       sessionVersion += 1;
+      bootstrapToken = null;
       return setSnapshot({
         token: null,
         user: null,
@@ -318,12 +411,32 @@ export async function bootstrapAdminSession({
             ? error.message
             : "Failed to restore admin session.",
       });
-    })
-    .finally(() => {
+    } finally {
+      if (
+        bootstrapRunId === runId &&
+        snapshot.status === "hydrating" &&
+        snapshot.token === token
+      ) {
+        console.error("[admin-auth] restore settled while still hydrating", {
+          runId,
+        });
+        clearPersistedSession();
+        sessionVersion += 1;
+        bootstrapToken = null;
+        setSnapshot({
+          token: null,
+          user: null,
+          status: "unauthenticated",
+          hasHydrated: true,
+          error: "Failed to restore admin session.",
+        });
+      }
+
       if (bootstrapRunId === runId) {
         bootstrapPromise = null;
       }
-    });
+    }
+  })();
 
   return bootstrapPromise;
 }

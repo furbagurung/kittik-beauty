@@ -1,4 +1,5 @@
 import { clearAdminSession, getStoredAdminToken } from "@/lib/admin-session";
+import type { AdminUser } from "@/lib/admin-session";
 import { API_BASE_URL } from "@/lib/api-config";
 import type {
   ProductMedia,
@@ -15,28 +16,49 @@ export async function apiFetch<T>(
   const isFormDataBody =
     typeof FormData !== "undefined" && options?.body instanceof FormData;
 
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-    ...options,
-    headers: {
-      ...(isFormDataBody ? {} : { "Content-Type": "application/json" }),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(options?.headers || {}),
-    },
-  });
+  const requestUrl = `${API_BASE_URL}${endpoint}`;
 
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => null);
+  try {
+    const response = await fetch(requestUrl, {
+      ...options,
+      headers: {
+        ...(isFormDataBody ? {} : { "Content-Type": "application/json" }),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(options?.headers || {}),
+      },
+    });
 
-    if (token && (response.status === 401 || response.status === 403)) {
-      clearAdminSession();
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+
+      console.warn("[admin-api] request failed", {
+        endpoint,
+        requestUrl,
+        status: response.status,
+        message: errorData?.message,
+      });
+
+      if (token && (response.status === 401 || response.status === 403)) {
+        clearAdminSession();
+      }
+
+      throw new Error(
+        errorData?.message || `API request failed: ${response.status}`,
+      );
     }
 
-    throw new Error(
-      errorData?.message || `API request failed: ${response.status}`,
-    );
-  }
+    return response.json();
+  } catch (error) {
+    if (error instanceof Error) {
+      console.warn("[admin-api] request error", {
+        endpoint,
+        requestUrl,
+        message: error.message,
+      });
+    }
 
-  return response.json();
+    throw error;
+  }
 }
 
 export type AdminApiProduct = {
@@ -62,6 +84,16 @@ export type AdminApiProduct = {
   variants?: ProductVariant[];
   defaultVariantId?: number | null;
   createdAt: string;
+};
+
+export type AdminApiProductCategory = {
+  id: number;
+  name: string;
+  slug: string;
+  sortOrder: number;
+  productCount: number;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type ReelStatus = "DRAFT" | "ACTIVE" | "ARCHIVED";
@@ -293,6 +325,51 @@ export async function deleteProduct(id: number) {
   );
 }
 
+export async function getProductCategories() {
+  return apiFetch<AdminApiProductCategory[]>("/categories");
+}
+
+export async function createProductCategory(data: {
+  name: string;
+  sortOrder?: number;
+}) {
+  return apiFetch<AdminApiProductCategory>(
+    "/categories",
+    {
+      method: "POST",
+      body: JSON.stringify(data),
+    },
+    getStoredAdminToken() || undefined,
+  );
+}
+
+export async function updateProductCategory(
+  id: number,
+  data: {
+    name: string;
+    sortOrder?: number;
+  },
+) {
+  return apiFetch<AdminApiProductCategory>(
+    `/categories/${id}`,
+    {
+      method: "PUT",
+      body: JSON.stringify(data),
+    },
+    getStoredAdminToken() || undefined,
+  );
+}
+
+export async function deleteProductCategory(id: number) {
+  return apiFetch<{ message: string }>(
+    `/categories/${id}`,
+    {
+      method: "DELETE",
+    },
+    getStoredAdminToken() || undefined,
+  );
+}
+
 export async function getReels() {
   return apiFetch<AdminApiReel[]>(
     "/reels/admin",
@@ -394,24 +471,44 @@ export type AdminLoginResponse = {
     id: number;
     name: string;
     email: string;
-    role: string;
+    role?: string;
   };
 };
 
 export async function adminLogin(data: { email: string; password: string }) {
-  return apiFetch<AdminLoginResponse>("/auth/admin/login", {
+  console.debug("[admin-auth] login request", {
+    requestUrl: `${API_BASE_URL}/auth/login`,
+  });
+
+  const response = await apiFetch<AdminLoginResponse>("/auth/login", {
     method: "POST",
     body: JSON.stringify(data),
   });
+
+  console.debug("[admin-auth] login response", {
+    hasToken: Boolean(response.token),
+    userEmail: response.user?.email,
+    hasRole: Boolean(response.user?.role),
+  });
+
+  return response;
 }
 export async function getCurrentAdmin(
   token = getStoredAdminToken() || undefined,
 ) {
-  return apiFetch<AdminLoginResponse["user"]>(
-    "/auth/admin/me",
-    undefined,
-    token,
-  );
+  console.debug("[admin-auth] admin validation request", {
+    requestUrl: `${API_BASE_URL}/auth/admin/me`,
+    hasToken: Boolean(token),
+  });
+
+  const response = await apiFetch<AdminUser>("/auth/admin/me", undefined, token);
+
+  console.debug("[admin-auth] admin validation response", {
+    userEmail: response.email,
+    role: response.role,
+  });
+
+  return response;
 }
 export type AdminApiUser = {
   id: number;

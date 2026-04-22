@@ -31,6 +31,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { getProductCategories, type AdminApiProductCategory } from "@/lib/api";
 
 export type ProductFormValues = {
   name: string;
@@ -60,14 +61,7 @@ type ProductFormProps = {
   onDelete?: () => Promise<void> | void;
 };
 
-const categoryOptions = [
-  "Skincare",
-  "Makeup",
-  "Haircare",
-  "Bodycare",
-  "Fragrance",
-  "Tools",
-];
+const DEFAULT_CATEGORY = "Skincare";
 
 const statusOptions: Product["status"][] = [
   "Active",
@@ -249,8 +243,10 @@ export default function ProductForm({
   const [price, setPrice] = useState(defaultValues?.price ?? "");
   const [stock, setStock] = useState<number>(defaultValues?.stock ?? 0);
   const [category, setCategory] = useState(
-    defaultValues?.category ?? "Skincare",
+    defaultValues?.category ?? DEFAULT_CATEGORY,
   );
+  const [categories, setCategories] = useState<AdminApiProductCategory[]>([]);
+  const [categoriesError, setCategoriesError] = useState("");
   const [status, setStatus] = useState<Product["status"]>(
     (defaultValues?.status as Product["status"]) ?? "Active",
   );
@@ -323,7 +319,7 @@ export default function ProductForm({
     setDescription(defaultValues?.description ?? "");
     setPrice(defaultValues?.price ?? "");
     setStock(defaultValues?.stock ?? 0);
-    setCategory(defaultValues?.category ?? "Skincare");
+    setCategory(defaultValues?.category ?? DEFAULT_CATEGORY);
     setStatus((defaultValues?.status as Product["status"]) ?? "Active");
     setOptions(defaultValues?.options ?? []);
     setHasVariants(shouldShowVariantEditor(defaultValues));
@@ -363,7 +359,47 @@ export default function ProductForm({
     defaultValues?.vendor,
   ]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadCategories() {
+      try {
+        const data = await getProductCategories();
+
+        if (!cancelled) {
+          setCategories(data);
+          setCategoriesError("");
+          setCategory((current) => current || data[0]?.name || DEFAULT_CATEGORY);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setCategories([]);
+          setCategoriesError(
+            error instanceof Error
+              ? error.message
+              : "Failed to load product categories.",
+          );
+        }
+      }
+    }
+
+    loadCategories();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const previewPrice = useMemo(() => formatCurrency(price), [price]);
+  const categoryOptions = useMemo(() => {
+    const names = categories.map((item) => item.name);
+
+    if (category && !names.includes(category)) {
+      return [...names, category];
+    }
+
+    return names.length ? names : [category || DEFAULT_CATEGORY];
+  }, [categories, category]);
   const primaryPreviewUrl = primaryItem?.previewUrl ?? "";
   const galleryCount = galleryItems.length;
   const isBusy = isSubmitting || isDeleting;
@@ -419,7 +455,7 @@ export default function ProductForm({
     setDescription(defaultValues?.description ?? "");
     setPrice(defaultValues?.price ?? "");
     setStock(defaultValues?.stock ?? 0);
-    setCategory(defaultValues?.category ?? "Skincare");
+    setCategory(defaultValues?.category ?? DEFAULT_CATEGORY);
     setStatus((defaultValues?.status as Product["status"]) ?? "Active");
     setOptions(defaultValues?.options ?? []);
     setHasVariants(shouldShowVariantEditor(defaultValues));
@@ -1012,6 +1048,11 @@ export default function ProductForm({
                       </SelectContent>
                     </Select>
                   </div>
+                  {categoriesError ? (
+                    <p className="text-xs leading-5 text-[color:var(--destructive)]">
+                      {categoriesError}
+                    </p>
+                  ) : null}
                 </ProductEditorField>
 
                 <ProductEditorField label="Price">

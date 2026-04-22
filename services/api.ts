@@ -1,4 +1,4 @@
-const API_BASE_URL = "http://192.168.1.66:5000/api";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL!;
 
 type RequestOptions = RequestInit & {
   token?: string | null;

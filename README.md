@@ -165,10 +165,19 @@ Start the admin dashboard from `admin/`:
 npm run dev
 ```
 
+For same-Wi-Fi testing from another device, start the admin dashboard from
+`admin/` with the LAN-stable webpack dev server:
+
+```bash
+npm run dev:lan
+```
+
+This runs `next dev --hostname 0.0.0.0 --port 3000 --webpack`.
+
 Default local ports:
 
-- backend API: `http://localhost:5000`
-- admin dashboard: `http://localhost:3000`
+- backend API on the host machine: `http://192.168.1.66:5000`
+- admin dashboard on the host machine: `http://192.168.1.66:3000`
 - Expo dev server: shown by `expo start`
 
 ## Auth And Access
@@ -188,7 +197,7 @@ Admin auth routes:
 
 Admin-only backend routes require a JWT whose payload contains `role: "admin"`.
 
-The admin dashboard persists `adminToken` and `adminUser` in `localStorage`, then validates the stored token through `GET /api/auth/admin/me` during session bootstrap.
+The admin dashboard persists `admin_token` and `admin_user` in `localStorage`, then validates the stored token through `GET /api/auth/admin/me` during session bootstrap. Legacy `adminToken` and `adminUser` values are migrated automatically.
 
 ## Main API Surface
 

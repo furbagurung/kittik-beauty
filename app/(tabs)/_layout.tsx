@@ -10,28 +10,34 @@ export default function TabsLayout() {
 
   return (
     <Tabs
-      screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: "#DC2626",
-        tabBarInactiveTintColor: "#9ca3af",
-        tabBarStyle: {
-          height: Platform.OS === "ios" ? 78 : 68,
-          paddingTop: 8,
-          paddingBottom: Platform.OS === "ios" ? 14 : 10,
-          borderTopWidth: 1,
-          borderTopColor: "#e5e7eb",
-          backgroundColor: "#ffffff",
-          elevation: 0,
-          shadowOpacity: 0,
-        },
-        tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: "700",
-          marginTop: 2,
-        },
-        tabBarItemStyle: {
-          paddingVertical: 4,
-        },
+      screenOptions={({ route }) => {
+        const isReelsRoute = route.name === "reels";
+
+        return {
+          headerShown: false,
+          tabBarActiveTintColor: "#DC2626",
+          tabBarInactiveTintColor: "#9ca3af",
+          tabBarStyle: {
+            height: Platform.OS === "ios" ? 78 : 68,
+            paddingTop: 8,
+            paddingBottom: Platform.OS === "ios" ? 14 : 10,
+            borderTopWidth: 1,
+            borderTopColor: isReelsRoute
+              ? "rgba(255,255,255,0.12)"
+              : "#e5e7eb",
+            backgroundColor: isReelsRoute ? "#000000" : "#ffffff",
+            elevation: 0,
+            shadowOpacity: 0,
+          },
+          tabBarLabelStyle: {
+            fontSize: 11,
+            fontWeight: "700",
+            marginTop: 2,
+          },
+          tabBarItemStyle: {
+            paddingVertical: 4,
+          },
+        };
       }}
     >
       <Tabs.Screen
@@ -66,17 +72,6 @@ export default function TabsLayout() {
         name="reels"
         options={{
           title: "Reels",
-          tabBarStyle: {
-            position: "absolute",
-            height: Platform.OS === "ios" ? 78 : 68,
-            paddingTop: 8,
-            paddingBottom: Platform.OS === "ios" ? 14 : 10,
-            borderTopWidth: 1,
-            borderTopColor: "rgba(255,255,255,0.12)",
-            backgroundColor: "rgba(5,5,5,0.78)",
-            elevation: 0,
-            shadowOpacity: 0,
-          },
           tabBarIcon: ({ color, focused }) => (
             <Ionicons
               name={focused ? "play-circle" : "play-circle-outline"}

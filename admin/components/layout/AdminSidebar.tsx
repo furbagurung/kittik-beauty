@@ -21,6 +21,10 @@ type NavItem = {
   label: string;
   href: string;
   icon: LucideIcon;
+  children?: Array<{
+    label: string;
+    href: string;
+  }>;
 };
 
 type NavSection = {
@@ -39,7 +43,20 @@ const sections: NavSection[] = [
   {
     label: "Catalog",
     items: [
-      { label: "Products", href: "/products", icon: Box },
+      {
+        label: "Products",
+        href: "/products",
+        icon: Box,
+        children: [
+          { label: "Products", href: "/products" },
+          { label: "Categories", href: "/products/categories" },
+        ],
+      },
+    ],
+  },
+  {
+    label: "Content",
+    items: [
       { label: "Reels", href: "/reels", icon: Clapperboard },
     ],
   },
@@ -54,6 +71,21 @@ const sections: NavSection[] = [
 
 const COLLAPSE_KEY = "adminSidebarCollapsed";
 const COLLAPSE_EVENT = "admin:sidebar-collapsed-change";
+
+function isNavItemActive(pathname: string, href: string) {
+  if (href === "/") return pathname === "/";
+
+  if (href === "/products") {
+    return (
+      pathname === "/products" ||
+      pathname === "/products/new" ||
+      (pathname.startsWith("/products/") &&
+        !pathname.startsWith("/products/categories"))
+    );
+  }
+
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
 
 function subscribeCollapsed(callback: () => void) {
   window.addEventListener(COLLAPSE_EVENT, callback);
@@ -136,10 +168,11 @@ export default function AdminSidebar() {
 
             <ul className="space-y-1">
               {section.items.map((item) => {
+                const childActive = item.children?.some((child) =>
+                  isNavItemActive(pathname, child.href),
+                );
                 const isActive =
-                  item.href === "/"
-                    ? pathname === "/"
-                    : pathname === item.href || pathname.startsWith(`${item.href}/`);
+                  isNavItemActive(pathname, item.href) || Boolean(childActive);
                 const Icon = item.icon;
 
                 return (
@@ -166,6 +199,41 @@ export default function AdminSidebar() {
                         <span className="truncate font-medium">{item.label}</span>
                       ) : null}
                     </Link>
+
+                    {!collapsed && item.children?.length ? (
+                      <ul className="mt-1 space-y-1 pl-7">
+                        {item.children.map((child) => {
+                          const isChildActive = isNavItemActive(
+                            pathname,
+                            child.href,
+                          );
+
+                          return (
+                            <li key={child.href}>
+                              <Link
+                                href={child.href}
+                                className={cn(
+                                  "flex items-center gap-2 rounded-md px-3 py-2 text-xs font-medium transition-colors",
+                                  isChildActive
+                                    ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                                    : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                                )}
+                              >
+                                <span
+                                  className={cn(
+                                    "size-1.5 rounded-full",
+                                    isChildActive
+                                      ? "bg-primary"
+                                      : "bg-muted-foreground/35",
+                                  )}
+                                />
+                                <span className="truncate">{child.label}</span>
+                              </Link>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    ) : null}
                   </li>
                 );
               })}

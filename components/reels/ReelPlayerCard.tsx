@@ -208,7 +208,7 @@ function ReelPlayerCard({
       <View
         style={[
           styles.progressTrack,
-          { bottom: Math.max(bottomInset + 8, 8) },
+          { bottom: Math.max(bottomInset + 2, 2) },
         ]}
       >
         <View style={styles.progressBase} />
@@ -272,7 +272,7 @@ function ReelPlayerCard({
 
       <View
         pointerEvents="box-none"
-        style={[styles.actionRail, { bottom: bottomInset + 122 }]}
+        style={[styles.actionRail, { bottom: bottomInset + 104 }]}
       >
         <Pressable style={styles.actionButton} onPress={() => onLike(reel)}>
           <Ionicons
@@ -300,7 +300,7 @@ function ReelPlayerCard({
 
       <View
         pointerEvents="box-none"
-        style={[styles.bottomOverlay, { bottom: bottomInset + 42 }]}
+        style={[styles.bottomOverlay, { bottom: bottomInset + 24 }]}
       >
         <Text style={styles.captionTitle} numberOfLines={1}>
           {reel.title || reel.creatorName || "Reel"}
@@ -345,7 +345,7 @@ function ReelPlayerCard({
         ) : null}
       </View>
       <Pressable
-        style={[styles.muteButtonFloating, { bottom: bottomInset + 34 }]}
+        style={[styles.muteButtonFloating, { bottom: bottomInset + 20 }]}
         onPress={onMuteToggle}
       >
         <View style={styles.iconButton}>
@@ -423,7 +423,7 @@ const styles = StyleSheet.create({
     textShadowRadius: 5,
   },
   card: {
-    backgroundColor: "#050505",
+    backgroundColor: "#000000",
     overflow: "hidden",
     position: "relative",
   },
@@ -584,6 +584,6 @@ const styles = StyleSheet.create({
   },
   videoLayer: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "#050505",
+    backgroundColor: "#000000",
   },
 });

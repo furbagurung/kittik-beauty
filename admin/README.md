@@ -40,7 +40,20 @@ Start the development server:
 npm run dev
 ```
 
-The app runs on `http://localhost:3000` by default.
+For same-Wi-Fi access from another laptop, bind the Next dev server to the
+network interface with the LAN-stable webpack dev server:
+
+```bash
+npm run dev:lan
+```
+
+This runs:
+
+```bash
+next dev --hostname 0.0.0.0 --port 3000 --webpack
+```
+
+The app runs on your configured Next dev host, for example `http://192.168.1.66:3000`.
 
 ## Backend Dependency
 
@@ -48,22 +61,29 @@ The dashboard talks directly to the Express API through [`lib/api.ts`](./lib/api
 
 Current API assumption:
 
-- `API_BASE_URL = "http://localhost:5000/api"`
+- `NEXT_PUBLIC_API_URL="http://192.168.1.66:5000/api"`
 
-If your backend is running somewhere else, update [`lib/api-config.ts`](./lib/api-config.ts) before testing.
+If your backend is running somewhere else, update the environment value before testing.
 
 ## Auth Flow
 
 The login screen posts to:
 
-- `POST /api/auth/admin/login`
+- `POST /api/auth/login`
+
+The returned token is then validated with:
+
+- `GET /api/auth/admin/me`
 
 On success, the dashboard stores:
 
-- `adminToken`
-- `adminUser`
+- `admin_token`
+- `admin_user`
 
 in `localStorage`.
+
+Legacy `adminToken` and `adminUser` values are still read once and migrated by
+the session layer.
 
 The session layer in [`lib/admin-session.ts`](./lib/admin-session.ts) then manages:
 
