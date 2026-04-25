@@ -36,4 +36,4 @@ cd /root/kittik-backend
 pm2 restart ecosystem.config.cjs --update-env
 pm2 save
 
-echo "Deployment complete."
+echo "Deployment complete." 
