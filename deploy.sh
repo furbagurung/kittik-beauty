@@ -16,7 +16,9 @@ which npm
 npm -v
 
 echo "Pulling latest code..."
-git pull origin main
+git fetch origin main
+git reset --hard origin/main
+git clean -fd -e .env -e uploads/
 
 echo "Installing backend dependencies..."
 npm install
