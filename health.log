@@ -1,0 +1,65 @@
+Backend DOWN - restarting...
+Use --update-env to update environment variables
+[PM2] Applying action restartProcessId on app [kittik-backend](ids: [ 0 ])
+[PM2] [kittik-backend](0) ✓
+┌────┬────────────────────┬─────────────┬─────────┬─────────┬──────────┬────────┬──────┬───────────┬──────────┬──────────┬──────────┬──────────┐
+│ id │ name               │ namespace   │ version │ mode    │ pid      │ uptime │ ↺    │ status    │ cpu      │ mem      │ user     │ watching │
+├────┼────────────────────┼─────────────┼─────────┼─────────┼──────────┼────────┼──────┼───────────┼──────────┼──────────┼──────────┼──────────┤
+│ 0  │ kittik-backend     │ default     │ 0.39.7  │ fork    │ 190595   │ 0s     │ 0    │ online    │ 0%       │ 26.3mb   │ root     │ disabled │
+│ 1  │ kittik-frontend    │ default     │ 0.39.7  │ fork    │ 189186   │ 10m    │ 0    │ online    │ 0%       │ 56.7mb   │ root     │ disabled │
+└────┴────────────────────┴─────────────┴─────────┴─────────┴──────────┴────────┴──────┴───────────┴──────────┴──────────┴──────────┴──────────┘
+Module
+┌────┬──────────────────────────────┬───────────────┬──────────┬──────────┬──────┬──────────┬──────────┬──────────┐
+│ id │ module                       │ version       │ pid      │ status   │ ↺    │ cpu      │ mem      │ user     │
+├────┼──────────────────────────────┼───────────────┼──────────┼──────────┼──────┼──────────┼──────────┼──────────┤
+│ 2  │ pm2-logrotate                │ 3.0.0         │ 189769   │ online   │ 2    │ 0%       │ 58.2mb   │ root     │
+└────┴──────────────────────────────┴───────────────┴──────────┴──────────┴──────┴──────────┴──────────┴──────────┘
+Backend OK
+Backend OK
+Sat Apr 25 18:11:01 UTC 2026 - Backend OK
+Sat Apr 25 18:12:01 UTC 2026 - Backend OK
+Sat Apr 25 18:13:01 UTC 2026 - Backend OK
+Sat Apr 25 18:14:01 UTC 2026 - Backend DOWN → restarting...
+Use --update-env to update environment variables
+[PM2] Applying action restartProcessId on app [kittik-backend](ids: [ 0 ])
+[PM2] [kittik-backend](0) ✓
+┌────┬────────────────────┬─────────────┬─────────┬─────────┬──────────┬────────┬──────┬───────────┬──────────┬──────────┬──────────┬──────────┐
+│ id │ name               │ namespace   │ version │ mode    │ pid      │ uptime │ ↺    │ status    │ cpu      │ mem      │ user     │ watching │
+├────┼────────────────────┼─────────────┼─────────┼─────────┼──────────┼────────┼──────┼───────────┼──────────┼──────────┼──────────┼──────────┤
+│ 0  │ kittik-backend     │ default     │ 0.39.7  │ fork    │ 191267   │ 0s     │ 0    │ online    │ 0%       │ 19.0mb   │ root     │ disabled │
+│ 1  │ kittik-frontend    │ default     │ 0.39.7  │ fork    │ 189186   │ 16m    │ 0    │ online    │ 0%       │ 56.9mb   │ root     │ disabled │
+└────┴────────────────────┴─────────────┴─────────┴─────────┴──────────┴────────┴──────┴───────────┴──────────┴──────────┴──────────┴──────────┘
+Module
+┌────┬──────────────────────────────┬───────────────┬──────────┬──────────┬──────┬──────────┬──────────┬──────────┐
+│ id │ module                       │ version       │ pid      │ status   │ ↺    │ cpu      │ mem      │ user     │
+├────┼──────────────────────────────┼───────────────┼──────────┼──────────┼──────┼──────────┼──────────┼──────────┤
+│ 2  │ pm2-logrotate                │ 3.0.0         │ 189769   │ online   │ 2    │ 0%       │ 59.2mb   │ root     │
+└────┴──────────────────────────────┴───────────────┴──────────┴──────────┴──────┴──────────┴──────────┴──────────┘
+Sat Apr 25 18:15:02 UTC 2026 - Backend OK
+Sat Apr 25 18:16:01 UTC 2026 - Backend OK
+Sat Apr 25 18:17:01 UTC 2026 - Backend OK
+Sat Apr 25 18:18:01 UTC 2026 - Backend OK
+Sat Apr 25 18:19:01 UTC 2026 - Backend OK
+Sat Apr 25 18:20:01 UTC 2026 - Backend OK
+Sat Apr 25 18:21:01 UTC 2026 - Backend OK
+Sat Apr 25 18:22:01 UTC 2026 - Backend OK
+Sat Apr 25 18:23:01 UTC 2026 - Backend OK
+Sat Apr 25 18:24:01 UTC 2026 - Backend OK
+Sat Apr 25 18:25:01 UTC 2026 - Backend OK
+Sat Apr 25 18:26:01 UTC 2026 - Backend OK
+Sat Apr 25 18:27:02 UTC 2026 - Backend OK
+Sat Apr 25 18:28:01 UTC 2026 - Backend OK
+Sat Apr 25 18:29:01 UTC 2026 - Backend OK
+Sat Apr 25 18:30:01 UTC 2026 - Backend OK
+Sat Apr 25 18:31:01 UTC 2026 - Backend OK
+Sat Apr 25 18:32:01 UTC 2026 - Backend OK
+Sat Apr 25 18:33:01 UTC 2026 - Backend OK
+Sat Apr 25 18:34:01 UTC 2026 - Backend OK
+Sat Apr 25 18:35:01 UTC 2026 - Backend OK
+Sat Apr 25 18:36:02 UTC 2026 - Backend OK
+Sat Apr 25 18:37:01 UTC 2026 - Backend OK
+Sat Apr 25 18:38:01 UTC 2026 - Backend OK
+Sat Apr 25 18:39:01 UTC 2026 - Backend OK
+Sat Apr 25 18:40:01 UTC 2026 - Backend OK
+Sat Apr 25 18:41:01 UTC 2026 - Backend OK
+Sat Apr 25 18:42:01 UTC 2026 - Backend OK

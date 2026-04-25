@@ -26,7 +26,11 @@ app.use(express.json());
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
 app.get("/api/health", (_req, res) => {
-  res.json({ ok: true, message: "Kittik backend is running" });
+  res.json({
+    status: "ok",
+    service: "kittik-backend",
+    timestamp: new Date().toISOString(),
+  });
 });
 
 app.use("/api/auth", authRoutes);

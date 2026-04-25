@@ -1,10 +1,15 @@
 import { prisma } from "../config/prisma.js";
+import {
+  buildPaginationMeta,
+  getPaginationParams,
+} from "../utils/apiPagination.js";
 import { restoreOrderStock } from "../utils/inventory.js";
 import {
   canAdminCancelOrder,
   canCustomerCancelOrder,
   shouldRestoreStockOnCancellation,
 } from "../utils/orderRules.js";
+import { timeQuery } from "../utils/queryTiming.js";
 
 function buildOrderResponse(order) {
   if (!order) return order;
@@ -210,17 +215,72 @@ export async function createOrder(req, res) {
 }
 export async function getUserOrders(req, res) {
   try {
-    const currentUser = await prisma.user.findUnique({
-      where: { id: req.user.id },
-    });
+    const pagination = getPaginationParams(req.query);
+    const { page, limit, isPaginated } = pagination;
+    console.log("Pagination:", { page, limit, isPaginated });
+    const queryContext = {
+      route: "GET /api/orders",
+      page: isPaginated ? page : undefined,
+      limit: isPaginated ? limit : undefined,
+    };
+    const currentUser = await timeQuery(
+      "orders.currentUser",
+      () =>
+        prisma.user.findUnique({
+          where: { id: req.user.id },
+        }),
+      queryContext,
+    );
+    const where = currentUser?.role === "admin" ? {} : { userId: req.user.id };
 
-    const orders = await prisma.order.findMany({
-      where: currentUser?.role === "admin" ? {} : { userId: req.user.id },
-      include: { orderitem: true },
-      orderBy: { createdAt: "desc" },
-    });
+    const [total, orders] = isPaginated
+      ? await Promise.all([
+          timeQuery(
+            "orders.count",
+            () => prisma.order.count({ where }),
+            queryContext,
+          ),
+          timeQuery(
+            "orders.findMany",
+            () =>
+              prisma.order.findMany({
+                where,
+                include: { orderitem: true },
+                orderBy: { createdAt: "desc" },
+                skip: pagination.skip,
+                take: pagination.take,
+              }),
+            queryContext,
+          ),
+        ])
+      : [
+          null,
+          await timeQuery(
+            "orders.findMany",
+            () =>
+              prisma.order.findMany({
+                where,
+                include: { orderitem: true },
+                orderBy: { createdAt: "desc" },
+              }),
+            queryContext,
+          ),
+        ];
 
-    return res.json(orders.map((order) => buildOrderResponse(order)));
+    const response = orders.map((order) => buildOrderResponse(order));
+
+    if (isPaginated) {
+      return res.json({
+        data: response,
+        pagination: buildPaginationMeta({
+          page,
+          limit,
+          total,
+        }),
+      });
+    }
+
+    return res.json(response);
   } catch (error) {
     return res.status(500).json({
       message: "Failed to fetch orders",

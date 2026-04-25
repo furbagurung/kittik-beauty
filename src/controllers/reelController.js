@@ -1,9 +1,14 @@
 import { prisma } from "../config/prisma.js";
 import {
+  buildPaginationMeta,
+  getPaginationParams,
+} from "../utils/apiPagination.js";
+import {
   buildPublicImageUrl,
   deleteManagedImageFiles,
   toStoredImagePath,
 } from "../utils/productImageUtils.js";
+import { timeQuery } from "../utils/queryTiming.js";
 
 const REEL_INCLUDE = (userId) => {
   const include = {
@@ -272,23 +277,78 @@ async function getReelWithRelations(id, userId) {
 export async function getReels(req, res) {
   try {
     const userId = req.user?.id ? Number(req.user.id) : null;
-    const reels = await prisma.reel.findMany({
-      where: {
-        status: "ACTIVE",
-      },
-      orderBy: [
-        { featured: "desc" },
-        { sortOrder: "asc" },
-        { createdAt: "desc" },
-      ],
-      include: REEL_INCLUDE(userId),
-    });
+    const pagination = getPaginationParams(req.query);
+    const { page, limit, isPaginated } = pagination;
+    console.log("Pagination:", { page, limit, isPaginated });
+    const where = {
+      status: "ACTIVE",
+    };
+    const orderBy = [
+      { featured: "desc" },
+      { sortOrder: "asc" },
+      { createdAt: "desc" },
+    ];
+    const queryContext = {
+      route: "GET /api/reels",
+      page: isPaginated ? page : undefined,
+      limit: isPaginated ? limit : undefined,
+    };
 
-    const eventCounts = await getReelEventCounts(reels.map((reel) => reel.id));
+    const [total, reels] = isPaginated
+      ? await Promise.all([
+          timeQuery(
+            "reels.count",
+            () => prisma.reel.count({ where }),
+            queryContext,
+          ),
+          timeQuery(
+            "reels.findMany",
+            () =>
+              prisma.reel.findMany({
+                where,
+                orderBy,
+                include: REEL_INCLUDE(userId),
+                skip: pagination.skip,
+                take: pagination.take,
+              }),
+            queryContext,
+          ),
+        ])
+      : [
+          null,
+          await timeQuery(
+            "reels.findMany",
+            () =>
+              prisma.reel.findMany({
+                where,
+                orderBy,
+                include: REEL_INCLUDE(userId),
+              }),
+            queryContext,
+          ),
+        ];
 
-    return res.json(
-      reels.map((reel) => buildReelResponse(reel, req, eventCounts)),
+    const eventCounts = await timeQuery(
+      "reels.eventCounts",
+      () => getReelEventCounts(reels.map((reel) => reel.id)),
+      queryContext,
     );
+    const response = reels.map((reel) =>
+      buildReelResponse(reel, req, eventCounts),
+    );
+
+    if (isPaginated) {
+      return res.json({
+        data: response,
+        pagination: buildPaginationMeta({
+          page,
+          limit,
+          total,
+        }),
+      });
+    }
+
+    return res.json(response);
   } catch (error) {
     return res.status(500).json({
       message: "Failed to load reels",

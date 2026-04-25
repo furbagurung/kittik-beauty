@@ -1,5 +1,9 @@
 import { prisma } from "../config/prisma.js";
 import {
+  buildPaginationMeta,
+  getPaginationParams,
+} from "../utils/apiPagination.js";
+import {
   buildProductResponse,
   deleteManagedImageFiles,
   getUploadedImagePaths,
@@ -7,6 +11,7 @@ import {
   parseGalleryField,
   toStoredImagePath,
 } from "../utils/productImageUtils.js";
+import { timeQuery } from "../utils/queryTiming.js";
 const PRODUCT_INCLUDE = {
   category: true,
   productmedia: true,
@@ -25,6 +30,19 @@ const PRODUCT_INCLUDE = {
         },
       },
     },
+  },
+};
+const PRODUCT_LIST_INCLUDE = {
+  category: true,
+  productmedia: {
+    orderBy: { position: "asc" },
+    take: 1,
+  },
+  producttag: true,
+  variants: {
+    where: { isDefault: true },
+    orderBy: { position: "asc" },
+    take: 1,
   },
 };
 
@@ -54,6 +72,14 @@ function parseOptionalNumber(value) {
   if (value === undefined || value === null || value === "") return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function parseQueryBoolean(value) {
+  const normalized = String(Array.isArray(value) ? value[0] : value)
+    .trim()
+    .toLowerCase();
+
+  return normalized === "true" || normalized === "1";
 }
 
 function normalizeProductStatus(status) {
@@ -377,32 +403,75 @@ export async function getProducts(req, res) {
     const { category, search, sort } = req.query;
     const categoryFilter = String(category ?? "").trim();
     const searchFilter = String(search ?? "").trim();
+    const detail = parseQueryBoolean(req.query.detail);
+    const pagination = getPaginationParams(req.query);
+    const { page, limit, isPaginated } = pagination;
+    console.log("Pagination:", { page, limit, isPaginated });
+    const where = {
+      ...(categoryFilter
+        ? {
+            OR: [
+              { categoryLegacy: categoryFilter },
+              { category: { is: { name: categoryFilter } } },
+            ],
+          }
+        : {}),
+      ...(searchFilter
+        ? {
+            OR: [
+              { title: { contains: searchFilter } },
+              { categoryLegacy: { contains: searchFilter } },
+              { category: { is: { name: { contains: searchFilter } } } },
+              { vendor: { contains: searchFilter } },
+              { productType: { contains: searchFilter } },
+            ],
+          }
+        : {}),
+    };
+    const queryContext = {
+      route: "GET /api/products",
+      page: isPaginated ? page : undefined,
+      limit: isPaginated ? limit : undefined,
+      detail: detail || undefined,
+    };
+    const include =
+      isPaginated && !detail
+        ? PRODUCT_LIST_INCLUDE
+        : PRODUCT_INCLUDE;
 
-    const products = await prisma.product.findMany({
-      where: {
-        ...(categoryFilter
-          ? {
-              OR: [
-                { categoryLegacy: categoryFilter },
-                { category: { is: { name: categoryFilter } } },
-              ],
-            }
-          : {}),
-        ...(searchFilter
-          ? {
-              OR: [
-                { title: { contains: searchFilter } },
-                { categoryLegacy: { contains: searchFilter } },
-                { category: { is: { name: { contains: searchFilter } } } },
-                { vendor: { contains: searchFilter } },
-                { productType: { contains: searchFilter } },
-              ],
-            }
-          : {}),
-      },
-      include: PRODUCT_INCLUDE,
-      orderBy: { createdAt: "desc" },
-    });
+    const [total, products] = isPaginated
+      ? await Promise.all([
+          timeQuery(
+            "products.count",
+            () => prisma.product.count({ where }),
+            queryContext,
+          ),
+          timeQuery(
+            "products.findMany",
+            () =>
+              prisma.product.findMany({
+                where,
+                include,
+                orderBy: { createdAt: "desc" },
+                skip: pagination.skip,
+                take: pagination.take,
+              }),
+            queryContext,
+          ),
+        ])
+      : [
+          null,
+          await timeQuery(
+            "products.findMany",
+            () =>
+              prisma.product.findMany({
+                where,
+                include: PRODUCT_INCLUDE,
+                orderBy: { createdAt: "desc" },
+              }),
+            queryContext,
+          ),
+        ];
 
     const response = products.map((product) =>
       buildProductResponse(product, req),
@@ -418,6 +487,17 @@ export async function getProducts(req, res) {
 
     if (sort === "rating_desc") {
       response.sort((left, right) => (right.rating ?? 0) - (left.rating ?? 0));
+    }
+
+    if (isPaginated) {
+      return res.json({
+        data: response,
+        pagination: buildPaginationMeta({
+          page,
+          limit,
+          total,
+        }),
+      });
     }
 
     return res.json(response);
