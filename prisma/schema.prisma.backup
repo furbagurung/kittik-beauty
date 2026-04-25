@@ -1,0 +1,323 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+model User {
+  id        Int         @id @default(autoincrement())
+  name      String
+  email     String      @unique(map: "User_email_key")
+  password  String
+  role      String      @default("customer")
+  createdAt DateTime    @default(now())
+  order     order[]
+  reel      reel[]
+  reelevent reelevent[]
+  reellike  reellike[]
+  reelsave  reelsave[]
+  reelview  reelview[]
+
+  @@map("user")
+}
+
+model order {
+  id            Int         @id @default(autoincrement())
+  userId        Int
+  fullName      String
+  phone         String
+  address       String
+  paymentMethod String
+  subtotal      Float
+  deliveryFee   Float
+  total         Float
+  totalItems    Int
+  status        String      @default("pending_payment")
+  stockRestored Boolean     @default(false)
+  createdAt     DateTime    @default(now())
+  user          User        @relation(fields: [userId], references: [id], onDelete: NoAction, map: "Order_userId_fkey")
+  orderitem     orderitem[]
+
+  @@index([userId], map: "Order_userId_fkey")
+}
+
+model orderitem {
+  id             Int            @id @default(autoincrement())
+  orderId        Int
+  variantId      Int
+  name           String
+  price          Float
+  quantity       Int
+  order          order          @relation(fields: [orderId], references: [id], onDelete: NoAction, map: "OrderItem_orderId_fkey")
+  productvariant productvariant @relation(fields: [variantId], references: [id], onDelete: NoAction, map: "OrderItem_variantId_fkey")
+
+  @@index([orderId], map: "OrderItem_orderId_fkey")
+  @@index([variantId], map: "OrderItem_variantId_fkey")
+}
+
+model product {
+  id               Int              @id @default(autoincrement())
+  title            String
+  slug             String           @unique(map: "Product_slug_key")
+  description      String?          @db.Text
+  shortDescription String?          @db.Text
+  status           product_status   @default(DRAFT)
+  productType      String?
+  vendor           String?
+  category         String?
+  featuredImage    String?
+  seoTitle         String?
+  seoDescription   String?          @db.Text
+  rating           Float            @default(0)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime
+  productmedia     productmedia[]
+  productoption    productoption[]
+  producttag       producttag[]
+  productvariant   productvariant[]
+  reelevent        reelevent[]
+  reelproducttag   reelproducttag[]
+}
+
+model productcategory {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique(map: "ProductCategory_name_key")
+  slug      String   @unique(map: "ProductCategory_slug_key")
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+}
+
+model productmedia {
+  id        Int               @id @default(autoincrement())
+  productId Int
+  url       String
+  altText   String?
+  type      productmedia_type @default(IMAGE)
+  position  Int               @default(0)
+  createdAt DateTime          @default(now())
+  product   product           @relation(fields: [productId], references: [id], onDelete: Cascade, map: "ProductMedia_productId_fkey")
+
+  @@index([productId, position], map: "ProductMedia_productId_position_idx")
+}
+
+model productoption {
+  id                     Int                      @id @default(autoincrement())
+  productId              Int
+  name                   String
+  position               Int                      @default(0)
+  product                product                  @relation(fields: [productId], references: [id], onDelete: Cascade, map: "ProductOption_productId_fkey")
+  productoptionvalue     productoptionvalue[]
+  variantoptionselection variantoptionselection[]
+
+  @@unique([productId, name], map: "ProductOption_productId_name_key")
+  @@index([productId, position], map: "ProductOption_productId_position_idx")
+}
+
+model productoptionvalue {
+  id                     Int                      @id @default(autoincrement())
+  optionId               Int
+  value                  String
+  position               Int                      @default(0)
+  productoption          productoption            @relation(fields: [optionId], references: [id], onDelete: Cascade, map: "ProductOptionValue_optionId_fkey")
+  variantoptionselection variantoptionselection[]
+
+  @@unique([optionId, value], map: "ProductOptionValue_optionId_value_key")
+  @@index([optionId, position], map: "ProductOptionValue_optionId_position_idx")
+}
+
+model producttag {
+  id        Int     @id @default(autoincrement())
+  productId Int
+  value     String
+  product   product @relation(fields: [productId], references: [id], onDelete: Cascade, map: "ProductTag_productId_fkey")
+
+  @@unique([productId, value], map: "ProductTag_productId_value_key")
+  @@index([productId], map: "ProductTag_productId_idx")
+}
+
+model productvariant {
+  id                            Int                        @id @default(autoincrement())
+  productId                     Int
+  title                         String
+  sku                           String?                    @unique(map: "ProductVariant_sku_key")
+  barcode                       String?
+  price                         Float
+  compareAtPrice                Float?
+  costPerItem                   Float?
+  stock                         Int                        @default(0)
+  trackQuantity                 Boolean                    @default(true)
+  continueSellingWhenOutOfStock Boolean                    @default(false)
+  weight                        Float?
+  weightUnit                    productvariant_weightUnit?
+  image                         String?
+  isDefault                     Boolean                    @default(false)
+  position                      Int                        @default(0)
+  status                        productvariant_status      @default(ACTIVE)
+  createdAt                     DateTime                   @default(now())
+  updatedAt                     DateTime
+  orderitem                     orderitem[]
+  product                       product                    @relation(fields: [productId], references: [id], onDelete: Cascade, map: "ProductVariant_productId_fkey")
+  reelevent                     reelevent[]
+  reelproducttag                reelproducttag[]
+  variantoptionselection        variantoptionselection[]
+
+  @@index([productId, position], map: "ProductVariant_productId_position_idx")
+  @@index([productId, status], map: "ProductVariant_productId_status_idx")
+}
+
+model reel {
+  id             Int              @id @default(autoincrement())
+  title          String
+  caption        String?          @db.Text
+  videoUrl       String
+  thumbnailUrl   String?
+  duration       Int?
+  status         reel_status      @default(DRAFT)
+  featured       Boolean          @default(false)
+  sortOrder      Int              @default(0)
+  viewCount      Int              @default(0)
+  createdById    Int?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @default(now())
+  user           User?            @relation(fields: [createdById], references: [id], map: "Reel_createdById_fkey")
+  reelevent      reelevent[]
+  reellike       reellike[]
+  reelproducttag reelproducttag[]
+  reelsave       reelsave[]
+  reelview       reelview[]
+
+  @@index([createdById], map: "Reel_createdById_idx")
+  @@index([status, featured, sortOrder, createdAt], map: "Reel_feed_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model reelevent {
+  id               Int             @id @default(autoincrement())
+  reelId           Int
+  userId           Int?
+  productId        Int?
+  variantId        Int?
+  reelProductTagId Int?
+  type             reelevent_type
+  metadata         String?         @db.LongText
+  createdAt        DateTime        @default(now())
+  product          product?        @relation(fields: [productId], references: [id], map: "ReelEvent_productId_fkey")
+  reel             reel            @relation(fields: [reelId], references: [id], onDelete: Cascade, map: "ReelEvent_reelId_fkey")
+  reelproducttag   reelproducttag? @relation(fields: [reelProductTagId], references: [id], map: "ReelEvent_reelProductTagId_fkey")
+  user             User?           @relation(fields: [userId], references: [id], map: "ReelEvent_userId_fkey")
+  productvariant   productvariant? @relation(fields: [variantId], references: [id], map: "ReelEvent_variantId_fkey")
+
+  @@index([productId], map: "ReelEvent_productId_idx")
+  @@index([reelId, type, createdAt], map: "ReelEvent_reelId_type_createdAt_idx")
+  @@index([reelProductTagId], map: "ReelEvent_reelProductTagId_idx")
+  @@index([userId], map: "ReelEvent_userId_idx")
+  @@index([variantId], map: "ReelEvent_variantId_idx")
+}
+
+model reellike {
+  id        Int      @id @default(autoincrement())
+  reelId    Int
+  userId    Int
+  createdAt DateTime @default(now())
+  reel      reel     @relation(fields: [reelId], references: [id], onDelete: Cascade, map: "ReelLike_reelId_fkey")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, map: "ReelLike_userId_fkey")
+
+  @@unique([reelId, userId], map: "ReelLike_reelId_userId_key")
+  @@index([userId], map: "ReelLike_userId_idx")
+}
+
+model reelproducttag {
+  id             Int             @id @default(autoincrement())
+  reelId         Int
+  productId      Int
+  variantId      Int?
+  ctaLabel       String          @default("Shop now")
+  sortOrder      Int             @default(0)
+  reelevent      reelevent[]
+  product        product         @relation(fields: [productId], references: [id], onDelete: Cascade, map: "ReelProductTag_productId_fkey")
+  reel           reel            @relation(fields: [reelId], references: [id], onDelete: Cascade, map: "ReelProductTag_reelId_fkey")
+  productvariant productvariant? @relation(fields: [variantId], references: [id], map: "ReelProductTag_variantId_fkey")
+
+  @@index([productId], map: "ReelProductTag_productId_idx")
+  @@index([reelId, sortOrder], map: "ReelProductTag_reelId_sortOrder_idx")
+  @@index([variantId], map: "ReelProductTag_variantId_idx")
+}
+
+model reelsave {
+  id        Int      @id @default(autoincrement())
+  reelId    Int
+  userId    Int
+  createdAt DateTime @default(now())
+  reel      reel     @relation(fields: [reelId], references: [id], onDelete: Cascade, map: "ReelSave_reelId_fkey")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, map: "ReelSave_userId_fkey")
+
+  @@unique([reelId, userId], map: "ReelSave_reelId_userId_key")
+  @@index([userId], map: "ReelSave_userId_idx")
+}
+
+model reelview {
+  id             Int      @id @default(autoincrement())
+  reelId         Int
+  userId         Int?
+  watchedSeconds Int      @default(0)
+  completed      Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  reel           reel     @relation(fields: [reelId], references: [id], onDelete: Cascade, map: "ReelView_reelId_fkey")
+  user           User?    @relation(fields: [userId], references: [id], map: "ReelView_userId_fkey")
+
+  @@index([reelId, createdAt], map: "ReelView_reelId_createdAt_idx")
+  @@index([userId], map: "ReelView_userId_idx")
+}
+
+model variantoptionselection {
+  id                 Int                @id @default(autoincrement())
+  variantId          Int
+  optionId           Int
+  optionValueId      Int
+  productoption      productoption      @relation(fields: [optionId], references: [id], onDelete: Cascade, map: "VariantOptionSelection_optionId_fkey")
+  productoptionvalue productoptionvalue @relation(fields: [optionValueId], references: [id], onDelete: Cascade, map: "VariantOptionSelection_optionValueId_fkey")
+  productvariant     productvariant     @relation(fields: [variantId], references: [id], onDelete: Cascade, map: "VariantOptionSelection_variantId_fkey")
+
+  @@unique([variantId, optionId], map: "VariantOptionSelection_variantId_optionId_key")
+  @@index([optionId, optionValueId], map: "VariantOptionSelection_optionId_optionValueId_idx")
+  @@index([optionValueId], map: "VariantOptionSelection_optionValueId_fkey")
+  @@index([variantId], map: "VariantOptionSelection_variantId_idx")
+}
+
+enum productmedia_type {
+  IMAGE
+  VIDEO
+}
+
+enum product_status {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum reel_status {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum reelevent_type {
+  SHARE
+  PRODUCT_CLICK
+}
+
+enum productvariant_weightUnit {
+  KG
+  G
+  LB
+  OZ
+}
+
+enum productvariant_status {
+  ACTIVE
+  ARCHIVED
+  OUT_OF_STOCK
+}

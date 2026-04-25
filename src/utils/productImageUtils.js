@@ -170,12 +170,17 @@ export async function deleteManagedImageFiles(values = []) {
 }
 
 export function buildProductResponse(product, req) {
-  const media = Array.isArray(product.media)
-    ? [...product.media].sort((left, right) => left.position - right.position)
+  const media = Array.isArray(product.productmedia)
+    ? [...product.productmedia].sort(
+        (left, right) => left.position - right.position,
+      )
     : [];
   const variants = Array.isArray(product.variants)
-    ? [...product.variants].sort((left, right) => left.position - right.position)
+    ? [...product.variants].sort(
+        (left, right) => left.position - right.position,
+      )
     : [];
+
   const defaultVariant =
     variants.find((variant) => variant.isDefault) ?? variants[0] ?? null;
   const featuredImage =
@@ -202,6 +207,7 @@ export function buildProductResponse(product, req) {
         : product.status === "ARCHIVED"
           ? "Archived"
           : "Draft";
+
   const options = Array.isArray(product.options)
     ? [...product.options]
         .sort((left, right) => left.position - right.position)
@@ -219,16 +225,21 @@ export function buildProductResponse(product, req) {
             })),
         }))
     : [];
+
   const normalizedVariants = variants.map((variant) => ({
     ...variant,
     selectedOptions: [...(variant.selections ?? [])]
-      .sort((left, right) => left.option.position - right.option.position)
+      .sort(
+        (left, right) =>
+          (left.option?.position ?? 0) - (right.option?.position ?? 0),
+      )
       .map((selection) => ({
         optionId: selection.optionId,
-        optionName: selection.option.name,
+        optionName: selection.option?.name,
         optionValueId: selection.optionValueId,
-        value: selection.optionValue.value,
-      })),
+        value: selection.optionValue?.value,
+      }))
+      .filter((selection) => selection.optionName && selection.value),
     selections: undefined,
   }));
   const publicMedia = media.map((item) => ({
@@ -237,24 +248,35 @@ export function buildProductResponse(product, req) {
   }));
 
   return {
-    ...product,
+    id: product.id,
     name: product.title,
     title: product.title,
+    slug: product.slug,
+    description: product.description,
+    shortDescription: product.shortDescription,
+    category: product.category ?? product.categoryLegacy,
+    categoryId: product.categoryId,
+    status: compatibilityStatus,
+
     image: buildPublicImageUrl(featuredImage, req) || undefined,
     images: galleryImages,
+
     price: defaultVariant?.price ?? 0,
     stock,
-    status: compatibilityStatus,
     defaultVariantId: defaultVariant?.id ?? null,
-    featuredImage: buildPublicImageUrl(featuredImage, req) || undefined,
+
     media: publicMedia,
     options,
     variants: normalizedVariants.map((variant) => ({
       ...variant,
       image: buildPublicImageUrl(variant.image, req) || variant.image,
     })),
-    tags: Array.isArray(product.tags)
-      ? product.tags.map((tag) => tag.value)
+
+    tags: Array.isArray(product.producttag)
+      ? product.producttag.map((tag) => tag.value)
       : [],
+
+    createdAt: product.createdAt,
+    updatedAt: product.updatedAt,
   };
 }

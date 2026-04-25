@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import type { ProductCategoryValue } from "@/utils/productCategory";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
@@ -7,7 +8,7 @@ export type WishlistItem = {
   name: string;
   price: number;
   image: string;
-  category: string;
+  category: ProductCategoryValue;
   rating: number;
 };
 

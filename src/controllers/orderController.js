@@ -5,6 +5,16 @@ import {
   canCustomerCancelOrder,
   shouldRestoreStockOnCancellation,
 } from "../utils/orderRules.js";
+
+function buildOrderResponse(order) {
+  if (!order) return order;
+
+  return {
+    ...order,
+    items: order.orderitem ?? [],
+  };
+}
+
 export async function createOrder(req, res) {
   try {
     const userId = req.user.id;
@@ -67,9 +77,9 @@ export async function createOrder(req, res) {
         include: { product: true },
       }),
       prisma.product.findMany({
-      where: {
-        id: { in: productIds },
-      },
+        where: {
+          id: { in: productIds },
+        },
         include: {
           variants: {
             where: { isDefault: true },
@@ -102,9 +112,11 @@ export async function createOrder(req, res) {
       const variant = item.variant;
 
       if (!variant) {
-        return res
-          .status(404)
-          .json({ message: `Product variant not found: ${item.variantId ?? item.productId}` });
+        return res.status(404).json({
+          message: `Product variant not found: ${
+            item.variantId ?? item.productId
+          }`,
+        });
       }
 
       if (
@@ -167,7 +179,7 @@ export async function createOrder(req, res) {
           totalItems: Number(totalItems),
           status:
             status || (paymentMethod === "cod" ? "placed" : "pending_payment"),
-          items: {
+          orderitem: {
             create: orderItems.map((item) => ({
               variantId: item.variant.id,
               name: item.name,
@@ -177,7 +189,7 @@ export async function createOrder(req, res) {
           },
         },
         include: {
-          items: true,
+          orderitem: true,
         },
       });
 
@@ -188,7 +200,7 @@ export async function createOrder(req, res) {
       return;
     }
 
-    return res.status(201).json(order);
+    return res.status(201).json(buildOrderResponse(order));
   } catch (error) {
     return res.status(500).json({
       message: "Failed to create order",
@@ -204,11 +216,11 @@ export async function getUserOrders(req, res) {
 
     const orders = await prisma.order.findMany({
       where: currentUser?.role === "admin" ? {} : { userId: req.user.id },
-      include: { items: true },
+      include: { orderitem: true },
       orderBy: { createdAt: "desc" },
     });
 
-    return res.json(orders);
+    return res.json(orders.map((order) => buildOrderResponse(order)));
   } catch (error) {
     return res.status(500).json({
       message: "Failed to fetch orders",
@@ -232,14 +244,14 @@ export async function getOrderById(req, res) {
               id: orderId,
               userId: req.user.id,
             },
-      include: { items: true },
+      include: { orderitem: true },
     });
 
     if (!order) {
       return res.status(404).json({ message: "Order not found" });
     }
 
-    return res.json(order);
+    return res.json(buildOrderResponse(order));
   } catch (error) {
     return res.status(500).json({
       message: "Failed to fetch order",
@@ -257,7 +269,7 @@ export async function cancelOwnOrder(req, res) {
         id: orderId,
         userId: req.user.id,
       },
-      include: { items: true },
+      include: { orderitem: true },
     });
 
     if (!existingOrder) {
@@ -274,7 +286,7 @@ export async function cancelOwnOrder(req, res) {
       const updatedOrder = await tx.order.update({
         where: { id: orderId },
         data: { status: "cancelled" },
-        include: { items: true },
+        include: { orderitem: true },
       });
 
       if (shouldRestoreStockOnCancellation(existingOrder, "cancelled")) {
@@ -284,7 +296,7 @@ export async function cancelOwnOrder(req, res) {
       return updatedOrder;
     });
 
-    return res.json(order);
+    return res.json(buildOrderResponse(order));
   } catch (error) {
     return res.status(500).json({
       message: "Failed to cancel order",
@@ -304,7 +316,7 @@ export async function updateOrderStatus(req, res) {
 
     const existingOrder = await prisma.order.findUnique({
       where: { id: orderId },
-      include: { items: true },
+      include: { orderitem: true },
     });
 
     if (!existingOrder) {
@@ -312,7 +324,7 @@ export async function updateOrderStatus(req, res) {
     }
 
     if (existingOrder.status === status) {
-      return res.json(existingOrder);
+      return res.json(buildOrderResponse(existingOrder));
     }
 
     if (status === "cancelled" && !canAdminCancelOrder(existingOrder)) {
@@ -325,7 +337,7 @@ export async function updateOrderStatus(req, res) {
       const updatedOrder = await tx.order.update({
         where: { id: orderId },
         data: { status },
-        include: { items: true },
+        include: { orderitem: true },
       });
 
       if (shouldRestoreStockOnCancellation(existingOrder, status)) {
@@ -335,7 +347,7 @@ export async function updateOrderStatus(req, res) {
       return updatedOrder;
     });
 
-    return res.json(order);
+    return res.json(buildOrderResponse(order));
   } catch (error) {
     return res.status(500).json({
       message: "Failed to update order status",

@@ -1,4 +1,5 @@
 import type { Reel, ReelProductTag } from "@/services/api";
+import { getProductCategoryName } from "@/utils/productCategory";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useVideoPlayer, VideoView } from "expo-video";
@@ -332,7 +333,7 @@ function ReelPlayerCard({
                 {featuredTag.product.name}
               </Text>
               <Text style={styles.productMeta} numberOfLines={1}>
-                {featuredTag.product.category || "Beauty"} /{" "}
+                {getProductCategoryName(featuredTag.product.category)} /{" "}
                 {formatPrice(featuredTag.product.price)}
               </Text>
             </View>

@@ -11,7 +11,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 
 import ProductEditorHeader from "@/components/products/ProductEditorHeader";
@@ -32,10 +32,15 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { getProductCategories, type AdminApiProductCategory } from "@/lib/api";
+import {
+  getAdminProductCategoryId,
+  getAdminProductCategoryName,
+} from "@/lib/product-category";
 
 export type ProductFormValues = {
   name: string;
   category: string;
+  categoryId: number | null;
   price: string;
   stock: number;
   status: Product["status"];
@@ -60,8 +65,6 @@ type ProductFormProps = {
   onSubmit: (values: ProductFormValues) => Promise<void> | void;
   onDelete?: () => Promise<void> | void;
 };
-
-const DEFAULT_CATEGORY = "Skincare";
 
 const statusOptions: Product["status"][] = [
   "Active",
@@ -191,6 +194,31 @@ function shouldShowVariantEditor(defaultValues?: Partial<Product>) {
   );
 }
 
+function resolveInitialCategoryId(
+  defaultValues: Partial<Product> | undefined,
+  categories: AdminApiProductCategory[],
+  mode: "create" | "edit",
+) {
+  const explicitId =
+    defaultValues?.categoryId ??
+    getAdminProductCategoryId(defaultValues?.category);
+
+  if (explicitId != null) {
+    return String(explicitId);
+  }
+
+  const categoryName = getAdminProductCategoryName(defaultValues?.category, "");
+  const matchingCategory = categoryName
+    ? categories.find((item) => item.name === categoryName)
+    : null;
+
+  return matchingCategory
+    ? String(matchingCategory.id)
+    : mode === "create"
+      ? String(categories[0]?.id ?? "")
+      : "";
+}
+
 function getVariantImageFileKey(
   variant: NonNullable<Product["variants"]>[number],
   index: number,
@@ -242,10 +270,11 @@ export default function ProductForm({
   );
   const [price, setPrice] = useState(defaultValues?.price ?? "");
   const [stock, setStock] = useState<number>(defaultValues?.stock ?? 0);
-  const [category, setCategory] = useState(
-    defaultValues?.category ?? DEFAULT_CATEGORY,
+  const [categoryId, setCategoryId] = useState(
+    () => resolveInitialCategoryId(defaultValues, [], mode),
   );
   const [categories, setCategories] = useState<AdminApiProductCategory[]>([]);
+  const [categoriesLoaded, setCategoriesLoaded] = useState(false);
   const [categoriesError, setCategoriesError] = useState("");
   const [status, setStatus] = useState<Product["status"]>(
     (defaultValues?.status as Product["status"]) ?? "Active",
@@ -319,7 +348,7 @@ export default function ProductForm({
     setDescription(defaultValues?.description ?? "");
     setPrice(defaultValues?.price ?? "");
     setStock(defaultValues?.stock ?? 0);
-    setCategory(defaultValues?.category ?? DEFAULT_CATEGORY);
+    setCategoryId(resolveInitialCategoryId(defaultValues, [], mode));
     setStatus((defaultValues?.status as Product["status"]) ?? "Active");
     setOptions(defaultValues?.options ?? []);
     setHasVariants(shouldShowVariantEditor(defaultValues));
@@ -344,6 +373,7 @@ export default function ProductForm({
     clearVariantImageFiles();
   }, [
     defaultValues?.category,
+    defaultValues?.categoryId,
     defaultValues?.description,
     defaultValues?.image,
     defaultValues?.name,
@@ -357,23 +387,27 @@ export default function ProductForm({
     defaultValues?.tags,
     defaultValues?.variants,
     defaultValues?.vendor,
+    mode,
   ]);
 
   useEffect(() => {
     let cancelled = false;
 
     async function loadCategories() {
+      setCategoriesLoaded(false);
+
       try {
         const data = await getProductCategories();
 
         if (!cancelled) {
           setCategories(data);
           setCategoriesError("");
-          setCategory((current) => current || data[0]?.name || DEFAULT_CATEGORY);
+          setCategoriesLoaded(true);
         }
       } catch (error) {
         if (!cancelled) {
           setCategories([]);
+          setCategoriesLoaded(true);
           setCategoriesError(
             error instanceof Error
               ? error.message
@@ -390,16 +424,31 @@ export default function ProductForm({
     };
   }, []);
 
+  useEffect(() => {
+    if (!categoriesLoaded) return;
+
+    setCategoryId((current) =>
+      current || resolveInitialCategoryId(defaultValues, categories, mode),
+    );
+  }, [
+    categories,
+    categoriesLoaded,
+    defaultValues?.category,
+    defaultValues?.categoryId,
+    mode,
+  ]);
+
+  const selectedCategory = useMemo(
+    () => categories.find((item) => String(item.id) === categoryId) ?? null,
+    [categories, categoryId],
+  );
+  const legacyCategoryName = getAdminProductCategoryName(
+    defaultValues?.category,
+    "",
+  );
+  const categoryName =
+    selectedCategory?.name ?? (!categoriesLoaded ? legacyCategoryName : "");
   const previewPrice = useMemo(() => formatCurrency(price), [price]);
-  const categoryOptions = useMemo(() => {
-    const names = categories.map((item) => item.name);
-
-    if (category && !names.includes(category)) {
-      return [...names, category];
-    }
-
-    return names.length ? names : [category || DEFAULT_CATEGORY];
-  }, [categories, category]);
   const primaryPreviewUrl = primaryItem?.previewUrl ?? "";
   const galleryCount = galleryItems.length;
   const isBusy = isSubmitting || isDeleting;
@@ -455,7 +504,7 @@ export default function ProductForm({
     setDescription(defaultValues?.description ?? "");
     setPrice(defaultValues?.price ?? "");
     setStock(defaultValues?.stock ?? 0);
-    setCategory(defaultValues?.category ?? DEFAULT_CATEGORY);
+    setCategoryId(resolveInitialCategoryId(defaultValues, categories, mode));
     setStatus((defaultValues?.status as Product["status"]) ?? "Active");
     setOptions(defaultValues?.options ?? []);
     setHasVariants(shouldShowVariantEditor(defaultValues));
@@ -882,9 +931,15 @@ export default function ProductForm({
       return;
     }
 
+    if (!selectedCategory) {
+      toast.error("Select a valid product category");
+      return;
+    }
+
     const values: ProductFormValues = {
       name,
-      category,
+      category: selectedCategory.name,
+      categoryId: selectedCategory.id,
       price: String(price || ""),
       stock: Number(stock || 0),
       status,
@@ -940,13 +995,14 @@ export default function ProductForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      <input type="hidden" name="category" value={category} />
+      <input type="hidden" name="category" value={categoryName} />
+      <input type="hidden" name="categoryId" value={categoryId} />
       <input type="hidden" name="status" value={status} />
 
       <ProductEditorHeader
         mode={mode}
         name={name}
-        category={category}
+        category={categoryName}
         status={status}
         hasPrimaryImage={hasPrimary}
         isSubmitting={isSubmitting}
@@ -1032,17 +1088,17 @@ export default function ProductForm({
                   <div className="relative">
                     <FolderKanban className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                     <Select
-                      value={category}
-                      onValueChange={(value) => setCategory(value)}
+                      value={categoryId}
+                      onValueChange={(value) => setCategoryId(value)}
                       disabled={isBusy}
                     >
                       <SelectTrigger className="h-11 rounded-xl pl-9">
-                        <SelectValue />
+                        <SelectValue placeholder="Select category" />
                       </SelectTrigger>
                       <SelectContent>
-                        {categoryOptions.map((item) => (
-                          <SelectItem key={item} value={item}>
-                            {item}
+                        {categories.map((item) => (
+                          <SelectItem key={item.id} value={String(item.id)}>
+                            {item.name}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -1618,7 +1674,7 @@ export default function ProductForm({
           <ProductSummaryCard
             mode={mode}
             name={name}
-            category={category}
+            category={categoryName}
             priceLabel={previewPrice}
             stock={stock}
             primaryPreviewUrl={primaryPreviewUrl}

@@ -1,4 +1,5 @@
 import { useWishlistStore } from "@/store/wishlistStore";
+import { getProductCategoryName } from "@/utils/productCategory";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import {
@@ -97,7 +98,9 @@ export default function WishlistScreen() {
                 <Image source={{ uri: item.image }} style={styles.image} />
 
                 <View style={styles.cardContent}>
-                  <Text style={styles.category}>{item.category}</Text>
+                  <Text style={styles.category}>
+                    {getProductCategoryName(item.category)}
+                  </Text>
 
                   <Text style={styles.name} numberOfLines={2}>
                     {item.name}

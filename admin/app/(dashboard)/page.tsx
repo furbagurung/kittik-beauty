@@ -25,6 +25,7 @@ import {
   formatRelativeTime,
   formatShortDate,
 } from "@/lib/format";
+import { getAdminProductCategoryName } from "@/lib/product-category";
 import type { ColumnDef } from "@tanstack/react-table";
 import {
   AlertTriangle,
@@ -320,7 +321,7 @@ export default function DashboardPage() {
                             {product.name}
                           </div>
                           <div className="text-xs text-muted-foreground">
-                            {product.category}
+                            {getAdminProductCategoryName(product.category)}
                           </div>
                         </div>
                       </div>

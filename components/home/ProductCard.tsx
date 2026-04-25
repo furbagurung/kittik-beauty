@@ -1,5 +1,6 @@
 import Skeleton from "@/components/ui/Skeleton";
 import { Product } from "@/types/product";
+import { getProductCategoryName } from "@/utils/productCategory";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
@@ -24,6 +25,7 @@ export default function ProductCard({ product }: ProductCardProps) {
   const hasRating = typeof product.rating === "number";
   const isOutOfStock = (product.stock ?? 0) === 0;
   const isLowStock = (product.stock ?? 0) > 0 && (product.stock ?? 0) <= 5;
+  const categoryName = getProductCategoryName(product.category);
 
   return (
     <MotiView
@@ -55,10 +57,10 @@ export default function ProductCard({ product }: ProductCardProps) {
             transition={{ type: "timing", duration: 220 }}
           />
 
-          {!!product.category && (
+          {!!categoryName && (
             <View style={styles.categoryBadge}>
               <Text style={styles.categoryBadgeText} numberOfLines={1}>
-                {product.category}
+                {categoryName}
               </Text>
             </View>
           )}

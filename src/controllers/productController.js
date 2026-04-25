@@ -7,10 +7,10 @@ import {
   parseGalleryField,
   toStoredImagePath,
 } from "../utils/productImageUtils.js";
-
 const PRODUCT_INCLUDE = {
-  media: true,
-  tags: true,
+  category: true,
+  productmedia: true,
+  producttag: true,
   options: {
     include: {
       values: true,
@@ -34,7 +34,10 @@ function getUploadedFiles(req, fieldName) {
   const files = req.files[fieldName];
   return Array.isArray(files) ? files : [];
 }
-
+function parseCategoryId(value) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
 function parseJsonArray(value) {
   if (Array.isArray(value)) return value;
   if (value === undefined || value === null || value === "") return [];
@@ -54,7 +57,10 @@ function parseOptionalNumber(value) {
 }
 
 function normalizeProductStatus(status) {
-  const normalized = String(status ?? "").trim().toUpperCase().replace(/\s+/g, "_");
+  const normalized = String(status ?? "")
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, "_");
 
   if (normalized === "ACTIVE") return "ACTIVE";
   if (normalized === "ARCHIVED") return "ARCHIVED";
@@ -62,7 +68,10 @@ function normalizeProductStatus(status) {
 }
 
 function normalizeVariantStatus(status, stock) {
-  const normalized = String(status ?? "").trim().toUpperCase().replace(/\s+/g, "_");
+  const normalized = String(status ?? "")
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, "_");
 
   if (stock === 0 || normalized === "OUT_OF_STOCK") return "OUT_OF_STOCK";
   if (normalized === "ARCHIVED") return "ARCHIVED";
@@ -232,12 +241,17 @@ function generateVariantsFromOptions(options, fallback) {
     image: fallback.image,
     isDefault: index === 0,
     position: index,
-    status: normalizeVariantStatus(index === 0 ? fallback.status : null, index === 0 ? fallback.stock : 0),
+    status: normalizeVariantStatus(
+      index === 0 ? fallback.status : null,
+      index === 0 ? fallback.stock : 0,
+    ),
     selectedOptions,
   }));
 }
 
 function buildVariantData(variant, productId) {
+  const now = new Date();
+
   return {
     productId,
     title: variant.title,
@@ -255,6 +269,7 @@ function buildVariantData(variant, productId) {
     isDefault: variant.isDefault,
     position: variant.position,
     status: variant.status,
+    updatedAt: now,
   };
 }
 
@@ -324,7 +339,7 @@ async function syncProductVariants(tx, productId, variants, optionValueMap) {
         })
       : await tx.productVariant.create({ data });
 
-    await tx.variantOptionSelection.deleteMany({
+    await tx.variantSelection.deleteMany({
       where: { variantId: savedVariant.id },
     });
 
@@ -339,7 +354,7 @@ async function syncProductVariants(tx, productId, variants, optionValueMap) {
         );
       }
 
-      await tx.variantOptionSelection.create({
+      await tx.variantSelection.create({
         data: {
           variantId: savedVariant.id,
           optionId: mapped.optionId,
@@ -360,17 +375,27 @@ async function getProductWithRelations(id) {
 export async function getProducts(req, res) {
   try {
     const { category, search, sort } = req.query;
+    const categoryFilter = String(category ?? "").trim();
+    const searchFilter = String(search ?? "").trim();
 
     const products = await prisma.product.findMany({
       where: {
-        ...(category ? { category } : {}),
-        ...(search
+        ...(categoryFilter
           ? {
               OR: [
-                { title: { contains: search } },
-                { category: { contains: search } },
-                { vendor: { contains: search } },
-                { productType: { contains: search } },
+                { categoryLegacy: categoryFilter },
+                { category: { is: { name: categoryFilter } } },
+              ],
+            }
+          : {}),
+        ...(searchFilter
+          ? {
+              OR: [
+                { title: { contains: searchFilter } },
+                { categoryLegacy: { contains: searchFilter } },
+                { category: { is: { name: { contains: searchFilter } } } },
+                { vendor: { contains: searchFilter } },
+                { productType: { contains: searchFilter } },
               ],
             }
           : {}),
@@ -379,7 +404,9 @@ export async function getProducts(req, res) {
       orderBy: { createdAt: "desc" },
     });
 
-    const response = products.map((product) => buildProductResponse(product, req));
+    const response = products.map((product) =>
+      buildProductResponse(product, req),
+    );
 
     if (sort === "price_asc") {
       response.sort((left, right) => left.price - right.price);
@@ -513,7 +540,10 @@ export async function createProduct(req, res) {
       (key) => String(key),
     );
     const variantImageMap = new Map(
-      variantImageKeys.map((key, index) => [key, uploadedVariantImagePaths[index]]),
+      variantImageKeys.map((key, index) => [
+        key,
+        uploadedVariantImagePaths[index],
+      ]),
     );
     const variantsWithImages = variants.map((variant) => ({
       ...variant,
@@ -536,14 +566,16 @@ export async function createProduct(req, res) {
           status: normalizeProductStatus(status),
           productType: productType?.trim() || null,
           vendor: vendor?.trim() || null,
-          category,
+          categoryLegacy: category,
+          categoryId: parseCategoryId(req.body.categoryId),
           featuredImage: primaryImage,
           seoTitle: seoTitle?.trim() || null,
           seoDescription: seoDescription?.trim() || null,
-          tags: {
+          updatedAt: new Date(),
+          producttag: {
             create: tags.map((value) => ({ value })),
           },
-          media: {
+          productmedia: {
             create: [primaryImage, ...galleryImages].map((url, position) => ({
               url,
               altText: productTitle,
@@ -553,8 +585,17 @@ export async function createProduct(req, res) {
         },
       });
 
-      const optionValueMap = await replaceProductOptions(tx, product.id, options);
-      await syncProductVariants(tx, product.id, variantsWithImages, optionValueMap);
+      const optionValueMap = await replaceProductOptions(
+        tx,
+        product.id,
+        options,
+      );
+      await syncProductVariants(
+        tx,
+        product.id,
+        variantsWithImages,
+        optionValueMap,
+      );
 
       return tx.product.findUnique({
         where: { id: product.id },
@@ -645,7 +686,7 @@ export async function updateProduct(req, res) {
       req,
     );
     const currentGalleryImages = normalizeStoredGalleryImages(
-      existingProduct.media
+      existingProduct.productmedia
         .filter((item) => item.url !== existingProduct.featuredImage)
         .map((item) => item.url),
       req,
@@ -682,22 +723,25 @@ export async function updateProduct(req, res) {
         : options.length > 0
           ? generateVariantsFromOptions(options, fallback)
           : normalizeVariants(
-              existingProduct.variants.length
-                ? existingProduct.variants.map((variant) => ({
-                    ...variant,
-                    price: parsedPrice,
-                    stock: parsedStock,
-                    image: variant.image ?? nextPrimaryImage,
-                    status,
-                  }))
-                : [],
-              fallback,
-            );
+            existingProduct.variants.length
+              ? existingProduct.variants.map((variant) => ({
+                  ...variant,
+                  price: parsedPrice,
+                  stock: parsedStock,
+                  image: variant.image ?? nextPrimaryImage,
+                  status,
+                }))
+              : [],
+            fallback,
+          );
     const variantImageKeys = parseJsonArray(req.body.variantImageKeys).map(
       (key) => String(key),
     );
     const variantImageMap = new Map(
-      variantImageKeys.map((key, index) => [key, uploadedVariantImagePaths[index]]),
+      variantImageKeys.map((key, index) => [
+        key,
+        uploadedVariantImagePaths[index],
+      ]),
     );
     const variantsWithImages = variants.map((variant) => ({
       ...variant,
@@ -721,15 +765,17 @@ export async function updateProduct(req, res) {
           status: normalizeProductStatus(status),
           productType: productType?.trim() || null,
           vendor: vendor?.trim() || null,
-          category,
+          categoryLegacy: category,
+          categoryId: parseCategoryId(req.body.categoryId),
           featuredImage: nextPrimaryImage,
           seoTitle: seoTitle?.trim() || null,
           seoDescription: seoDescription?.trim() || null,
-          tags: {
+          updatedAt: new Date(),
+          producttag: {
             deleteMany: {},
             create: tags.map((value) => ({ value })),
           },
-          media: {
+          productmedia: {
             deleteMany: {},
             create: [nextPrimaryImage, ...nextGalleryImages].map(
               (url, position) => ({
@@ -798,7 +844,7 @@ export async function deleteProduct(req, res) {
 
     await deleteManagedImageFiles([
       existingProduct.featuredImage,
-      ...existingProduct.media.map((item) => item.url),
+      ...existingProduct.productmedia.map((item) => item.url),
       ...existingProduct.variants.map((variant) => variant.image),
     ]);
 

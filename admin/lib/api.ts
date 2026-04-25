@@ -1,6 +1,7 @@
 import { clearAdminSession, getStoredAdminToken } from "@/lib/admin-session";
 import type { AdminUser } from "@/lib/admin-session";
 import { API_BASE_URL } from "@/lib/api-config";
+import type { AdminProductCategoryValue } from "@/lib/product-category";
 import type {
   ProductMedia,
   ProductOption,
@@ -71,7 +72,8 @@ export type AdminApiProduct = {
   images?: string[];
   featuredImage?: string;
   media?: ProductMedia[];
-  category: string;
+  category: AdminProductCategoryValue;
+  categoryId?: number | null;
   stock: number;
   status: ProductStatus;
   description?: string;
@@ -107,7 +109,7 @@ export type AdminApiReelProductTag = {
   product: {
     id: number;
     name: string;
-    category?: string | null;
+    category?: AdminProductCategoryValue;
     price: number;
     image?: string;
   };
@@ -144,6 +146,7 @@ type ProductMutationInput = {
   name: string;
   price: number;
   category: string;
+  categoryId?: number | null;
   stock: number;
   status: ProductStatus;
   description?: string;
@@ -186,6 +189,10 @@ function buildProductMutationFormData(data: ProductMutationInput) {
   formData.append("name", data.name);
   formData.append("price", String(data.price));
   formData.append("category", data.category);
+  formData.append(
+    "categoryId",
+    data.categoryId == null ? "" : String(data.categoryId),
+  );
   formData.append("stock", String(data.stock));
   formData.append("status", data.status);
   formData.append("description", data.description ?? "");
@@ -254,26 +261,7 @@ export async function getProducts() {
 export async function getProductById(id: number) {
   return apiFetch<AdminApiProduct>(`/products/${id}`);
 }
-export async function createProduct(data: {
-  name: string;
-  price: number;
-  category: string;
-  stock: number;
-  status: ProductStatus;
-  description?: string;
-  image?: string;
-  primaryImageFile?: File | null;
-  galleryFiles?: File[];
-  existingGalleryImages?: string[];
-  options?: ProductOption[];
-  variants?: ProductVariant[];
-  tags?: string[];
-  productType?: string;
-  vendor?: string;
-  seoTitle?: string;
-  seoDescription?: string;
-  variantImageFiles?: Array<{ key: string; file: File }>;
-}) {
+export async function createProduct(data: ProductMutationInput) {
   return apiFetch<AdminApiProduct>(
     "/products",
     {
@@ -285,26 +273,7 @@ export async function createProduct(data: {
 }
 export async function updateProduct(
   id: number,
-  data: {
-    name: string;
-    price: number;
-    category: string;
-    stock: number;
-    status: ProductStatus;
-    description?: string;
-    image?: string;
-    primaryImageFile?: File | null;
-    galleryFiles?: File[];
-    existingGalleryImages?: string[];
-    options?: ProductOption[];
-    variants?: ProductVariant[];
-    tags?: string[];
-    productType?: string;
-    vendor?: string;
-    seoTitle?: string;
-    seoDescription?: string;
-    variantImageFiles?: Array<{ key: string; file: File }>;
-  },
+  data: ProductMutationInput,
 ) {
   return apiFetch<AdminApiProduct>(
     `/products/${id}`,

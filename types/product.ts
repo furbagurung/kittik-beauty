@@ -53,12 +53,24 @@ export type ProductMedia = {
   position: number;
 };
 
+export type ProductCategoryObject = {
+  id?: number;
+  name?: string | null;
+  slug?: string | null;
+};
+
+export type ProductCategoryValue =
+  | string
+  | ProductCategoryObject
+  | null
+  | undefined;
+
 export type Product = {
   id: number;
   name: string;
   title?: string;
   slug?: string;
-  category: string;
+  category: ProductCategoryValue;
   price: number;
   stock: number;
   status: ProductStatus;

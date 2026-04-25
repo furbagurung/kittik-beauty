@@ -1,4 +1,5 @@
 import express from "express";
+import { getCategories } from "../controllers/categoryController.js";
 import {
     createProduct,
     deleteProduct,
@@ -13,6 +14,7 @@ const router = express.Router();
 
 // PUBLIC
 router.get("/", getProducts);
+router.get("/categories", getCategories);
 router.get("/:id", getProductById);
 
 // ADMIN ONLY

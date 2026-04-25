@@ -1,9 +1,10 @@
 import { PrismaMariaDb } from "@prisma/adapter-mariadb";
-import { PrismaClient } from "@prisma/client";
+import pkg from "@prisma/client";
+const { PrismaClient } = pkg;
 import "dotenv/config";
 
 const adapter = new PrismaMariaDb({
-  host: "localhost",
+host: "127.0.0.1",
   port: 3306,
   user: "kittik_user",
   password: "StrongPassword123!",

@@ -40,9 +40,9 @@ async function getUniqueCategorySlug(name, categoryIdToIgnore) {
 
 async function buildCategoryResponses(categories) {
   const productCounts = await prisma.product.groupBy({
-    by: ["category"],
+    by: ["categoryId"],
     where: {
-      category: {
+      categoryId: {
         not: null,
       },
     },
@@ -50,8 +50,9 @@ async function buildCategoryResponses(categories) {
       _all: true,
     },
   });
-  const countByCategory = new Map(
-    productCounts.map((row) => [row.category, row._count._all]),
+
+  const productCountMap = new Map(
+    productCounts.map((item) => [item.categoryId, item._count._all]),
   );
 
   return categories.map((category) => ({
@@ -59,7 +60,7 @@ async function buildCategoryResponses(categories) {
     name: category.name,
     slug: category.slug,
     sortOrder: category.sortOrder,
-    productCount: countByCategory.get(category.name) ?? 0,
+    productCount: productCountMap.get(category.id) ?? 0,
     createdAt: category.createdAt,
     updatedAt: category.updatedAt,
   }));
@@ -149,10 +150,10 @@ export async function updateCategory(req, res) {
       if (existingCategory.name !== name) {
         await tx.product.updateMany({
           where: {
-            category: existingCategory.name,
+            categoryLegacy: existingCategory.name,
           },
           data: {
-            category: name,
+            categoryLegacy: name,
           },
         });
       }
@@ -194,7 +195,10 @@ export async function deleteCategory(req, res) {
 
     const productCount = await prisma.product.count({
       where: {
-        category: existingCategory.name,
+        OR: [
+          { categoryId: existingCategory.id },
+          { categoryLegacy: existingCategory.name },
+        ],
       },
     });
 

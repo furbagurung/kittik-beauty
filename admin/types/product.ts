@@ -1,3 +1,5 @@
+import type { AdminProductCategoryValue } from "@/lib/product-category";
+
 export type ProductStatus = "Active" | "Draft" | "Archived" | "Out of Stock";
 
 export type VariantOption = {
@@ -48,7 +50,8 @@ export type Product = {
   name: string;
   title?: string;
   slug?: string;
-  category: string;
+  category: AdminProductCategoryValue;
+  categoryId?: number | null;
   price: string;
   stock: number;
   status: ProductStatus;

@@ -12,7 +12,12 @@ export default function NewProductPage() {
   const router = useRouter();
 
   async function handleCreateProduct(values: ProductFormValues) {
-    if (!values.name || !values.category || !values.price) {
+    if (
+      !values.name ||
+      !values.categoryId ||
+      !values.category ||
+      !values.price
+    ) {
       toast.error("Fill name, category, and price");
       return;
     }
@@ -22,6 +27,7 @@ export default function NewProductPage() {
         name: values.name,
         price: Number(values.price || 0),
         category: values.category,
+        categoryId: values.categoryId,
         stock: Number(values.stock ?? 0),
         status: values.status,
         description: values.description || "",

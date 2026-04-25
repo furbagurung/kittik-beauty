@@ -7,44 +7,39 @@ import {
 
 const REEL_INCLUDE = (userId) => {
   const include = {
-    creator: {
+    user: {
       select: {
         id: true,
         name: true,
       },
     },
-    productTags: {
-      orderBy: {
-        sortOrder: "asc",
-      },
+    reelproducttag: {
+      orderBy: { sortOrder: "asc" },
       include: {
         product: {
           include: {
-            media: {
-              orderBy: {
-                position: "asc",
-              },
+            category: true,
+            productmedia: {
+              orderBy: { position: "asc" },
             },
             variants: {
-              orderBy: {
-                position: "asc",
-              },
+              orderBy: { position: "asc" },
             },
           },
         },
-        variant: true,
+        productVariant: true,
       },
     },
     _count: {
       select: {
-        likes: true,
-        saves: true,
+        reellike: true,
+        reelsave: true,
       },
     },
   };
 
   if (userId) {
-    include.likes = {
+    include.reellike = {
       where: {
         userId,
       },
@@ -52,7 +47,7 @@ const REEL_INCLUDE = (userId) => {
         id: true,
       },
     };
-    include.saves = {
+    include.reelsave = {
       where: {
         userId,
       },
@@ -119,7 +114,9 @@ function normalizeProductTags(value) {
     .map((tag, index) => ({
       productId: Number(tag?.productId),
       variantId:
-        tag?.variantId === undefined || tag?.variantId === null || tag?.variantId === ""
+        tag?.variantId === undefined ||
+        tag?.variantId === null ||
+        tag?.variantId === ""
           ? null
           : Number(tag.variantId),
       ctaLabel: String(tag?.ctaLabel ?? "Shop now").trim() || "Shop now",
@@ -155,14 +152,14 @@ async function getReelEventCounts(reelIds = []) {
     ]),
   );
 
-  if (!prisma.reelEvent?.groupBy) {
+  if (!prisma.reelevent?.groupBy) {
     console.warn(
       "Reel analytics counts unavailable: Prisma reelEvent delegate is missing.",
     );
     return counts;
   }
 
-  const rows = await prisma.reelEvent.groupBy({
+  const rows = await prisma.reelevent.groupBy({
     by: ["reelId", "type"],
     where: {
       reelId: {
@@ -201,14 +198,15 @@ function buildProductPreview(product, variant, req) {
     variants.find((candidate) => candidate.isDefault) ??
     variants[0] ??
     null;
-  const media = Array.isArray(product?.media) ? product.media : [];
+  const media = Array.isArray(product?.productmedia) ? product.productmedia : [];
   const image =
     defaultVariant?.image ?? product?.featuredImage ?? media[0]?.url ?? null;
 
   return {
     id: product.id,
     name: product.title,
-    category: product.category,
+    category: product.category ?? product.categoryLegacy,
+    categoryId: product.categoryId,
     price: defaultVariant?.price ?? 0,
     image: buildPublicImageUrl(image, req) || undefined,
   };
@@ -233,15 +231,15 @@ function buildReelResponse(reel, req, eventCounts) {
     sortOrder: reel.sortOrder,
     createdAt: reel.createdAt,
     updatedAt: reel.updatedAt,
-    creatorName: reel.creator?.name ?? "Kittik Beauty",
+    creatorName: reel.user?.name ?? "Kittik Beauty",
     viewCount: reel.viewCount,
-    likeCount: reel._count?.likes ?? 0,
-    saveCount: reel._count?.saves ?? 0,
+    likeCount: reel._count?.reellike ?? 0,
+    saveCount: reel._count?.reelsave ?? 0,
     shareCount: analytics.shareCount,
     productClickCount: analytics.productClickCount,
-    likedByMe: Array.isArray(reel.likes) && reel.likes.length > 0,
-    savedByMe: Array.isArray(reel.saves) && reel.saves.length > 0,
-    productTags: [...(reel.productTags ?? [])]
+    likedByMe: Array.isArray(reel.reellike) && reel.reellike.length > 0,
+    savedByMe: Array.isArray(reel.reelsave) && reel.reelsave.length > 0,
+    productTags: [...(reel.reelproducttag ?? [])]
       .sort((left, right) => left.sortOrder - right.sortOrder)
       .map((tag) => ({
         id: tag.id,
@@ -249,13 +247,15 @@ function buildReelResponse(reel, req, eventCounts) {
         variantId: tag.variantId,
         ctaLabel: tag.ctaLabel,
         sortOrder: tag.sortOrder,
-        product: buildProductPreview(tag.product, tag.variant, req),
-        variant: tag.variant
+        product: buildProductPreview(tag.product, tag.productVariant, req),
+        variant: tag.productVariant
           ? {
-              id: tag.variant.id,
-              title: tag.variant.title,
-              price: tag.variant.price,
-              image: buildPublicImageUrl(tag.variant.image, req) || tag.variant.image,
+              id: tag.productVariant.id,
+              title: tag.productVariant.title,
+              price: tag.productVariant.price,
+              image:
+                buildPublicImageUrl(tag.productVariant.image, req) ||
+                tag.productVariant.image,
             }
           : null,
       })),
@@ -403,7 +403,7 @@ export async function trackReelView(req, res) {
     const userId = req.user?.id ? Number(req.user.id) : null;
 
     const [, updatedReel] = await prisma.$transaction([
-      prisma.reelView.create({
+      prisma.reelview.create({
         data: {
           reelId: id,
           userId,
@@ -455,18 +455,18 @@ export async function trackReelShare(req, res) {
       return res.status(404).json({ message: "Reel not found" });
     }
 
-    await prisma.reelEvent.create({
+    await prisma.reelevent.create({
       data: {
         reelId: id,
         userId: req.user?.id ? Number(req.user.id) : null,
         type: "SHARE",
-        metadata: {
+        metadata: JSON.stringify({
           channel: String(req.body?.channel ?? "native-share"),
-        },
+        }),
       },
     });
 
-    const shareCount = await prisma.reelEvent.count({
+    const shareCount = await prisma.reelevent.count({
       where: {
         reelId: id,
         type: "SHARE",
@@ -488,14 +488,14 @@ export async function trackReelProductClick(req, res) {
     const productId = Number(req.body?.productId);
     const variantId =
       req.body?.variantId === undefined ||
-      req.body?.variantId === null ||
-      req.body?.variantId === ""
+        req.body?.variantId === null ||
+        req.body?.variantId === ""
         ? null
         : Number(req.body.variantId);
     const reelProductTagId =
       req.body?.reelProductTagId === undefined ||
-      req.body?.reelProductTagId === null ||
-      req.body?.reelProductTagId === ""
+        req.body?.reelProductTagId === null ||
+        req.body?.reelProductTagId === ""
         ? null
         : Number(req.body.reelProductTagId);
 
@@ -532,7 +532,7 @@ export async function trackReelProductClick(req, res) {
       return res.status(404).json({ message: "Reel not found" });
     }
 
-    await prisma.reelEvent.create({
+    await prisma.reelevent.create({
       data: {
         reelId: id,
         userId: req.user?.id ? Number(req.user.id) : null,
@@ -540,13 +540,13 @@ export async function trackReelProductClick(req, res) {
         variantId,
         reelProductTagId,
         type: "PRODUCT_CLICK",
-        metadata: {
+        metadata: JSON.stringify({
           source: String(req.body?.source ?? "reel-product-card"),
-        },
+        }),
       },
     });
 
-    const productClickCount = await prisma.reelEvent.count({
+    const productClickCount = await prisma.reelevent.count({
       where: {
         reelId: id,
         type: "PRODUCT_CLICK",
@@ -585,7 +585,7 @@ export async function likeReel(req, res) {
       return res.status(404).json({ message: "Reel not found" });
     }
 
-    await prisma.reelLike.upsert({
+    await prisma.reellike.upsert({
       where: {
         reelId_userId: {
           reelId: id,
@@ -599,7 +599,7 @@ export async function likeReel(req, res) {
       },
     });
 
-    const likeCount = await prisma.reelLike.count({ where: { reelId: id } });
+    const likeCount = await prisma.reellike.count({ where: { reelId: id } });
 
     return res.status(201).json({ likedByMe: true, likeCount });
   } catch (error) {
@@ -619,14 +619,14 @@ export async function unlikeReel(req, res) {
       return res.status(400).json({ message: "Invalid reel id" });
     }
 
-    await prisma.reelLike.deleteMany({
+    await prisma.reellike.deleteMany({
       where: {
         reelId: id,
         userId,
       },
     });
 
-    const likeCount = await prisma.reelLike.count({ where: { reelId: id } });
+    const likeCount = await prisma.reellike.count({ where: { reelId: id } });
 
     return res.json({ likedByMe: false, likeCount });
   } catch (error) {
@@ -660,7 +660,7 @@ export async function saveReel(req, res) {
       return res.status(404).json({ message: "Reel not found" });
     }
 
-    await prisma.reelSave.upsert({
+    await prisma.reelsave.upsert({
       where: {
         reelId_userId: {
           reelId: id,
@@ -674,7 +674,7 @@ export async function saveReel(req, res) {
       },
     });
 
-    const saveCount = await prisma.reelSave.count({ where: { reelId: id } });
+    const saveCount = await prisma.reelsave.count({ where: { reelId: id } });
 
     return res.status(201).json({ savedByMe: true, saveCount });
   } catch (error) {
@@ -694,14 +694,14 @@ export async function unsaveReel(req, res) {
       return res.status(400).json({ message: "Invalid reel id" });
     }
 
-    await prisma.reelSave.deleteMany({
+    await prisma.reelsave.deleteMany({
       where: {
         reelId: id,
         userId,
       },
     });
 
-    const saveCount = await prisma.reelSave.count({ where: { reelId: id } });
+    const saveCount = await prisma.reelsave.count({ where: { reelId: id } });
 
     return res.json({ savedByMe: false, saveCount });
   } catch (error) {
@@ -743,7 +743,7 @@ export async function createReel(req, res) {
         featured: parseBoolean(req.body.featured),
         sortOrder: Number(req.body.sortOrder ?? 0) || 0,
         createdById: Number(req.user.id),
-        productTags: {
+        reelproducttag: {
           create: productTags,
         },
       },
@@ -778,7 +778,7 @@ export async function updateReel(req, res) {
     const existingReel = await prisma.reel.findUnique({
       where: { id },
       include: {
-        productTags: true,
+        reelproducttag: true,
       },
     });
 
@@ -813,7 +813,7 @@ export async function updateReel(req, res) {
 
     const updatedReel = await prisma.$transaction(async (tx) => {
       if (shouldReplaceTags) {
-        await tx.reelProductTag.deleteMany({ where: { reelId: id } });
+        await tx.reelproducttag.deleteMany({ where: { reelId: id } });
       }
 
       await tx.reel.update({
@@ -841,10 +841,10 @@ export async function updateReel(req, res) {
               : Number(req.body.sortOrder ?? 0) || 0,
           ...(shouldReplaceTags
             ? {
-                productTags: {
-                  create: productTags,
-                },
-              }
+              reelproducttag: {
+                create: productTags,
+              },
+            }
             : {}),
         },
       });

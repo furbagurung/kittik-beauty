@@ -11,6 +11,7 @@ import {
   updateProduct,
 } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
+import { getAdminProductCategoryId } from "@/lib/product-category";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -63,7 +64,12 @@ export default function EditProductPage() {
   }, [id]);
 
   async function handleUpdateProduct(values: ProductFormValues) {
-    if (!values.name || !values.category || !values.price) {
+    if (
+      !values.name ||
+      !values.categoryId ||
+      !values.category ||
+      !values.price
+    ) {
       toast.error("Fill name, category, and price");
       return;
     }
@@ -73,6 +79,7 @@ export default function EditProductPage() {
         name: values.name,
         price: Number(values.price || 0),
         category: values.category,
+        categoryId: values.categoryId,
         stock: Number(values.stock ?? 0),
         status: values.status,
         description: values.description || "",
@@ -126,6 +133,8 @@ export default function EditProductPage() {
       defaultValues={{
         name: product.name,
         category: product.category,
+        categoryId:
+          product.categoryId ?? getAdminProductCategoryId(product.category),
         price: String(product.price),
         image: product.image,
         images: product.images ?? [],

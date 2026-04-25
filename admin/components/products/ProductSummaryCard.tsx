@@ -1,11 +1,15 @@
 /* eslint-disable @next/next/no-img-element */
 
 import ProductSidebarCard from "@/components/products/ProductSidebarCard";
+import {
+  getAdminProductCategoryName,
+  type AdminProductCategoryValue,
+} from "@/lib/product-category";
 
 type ProductSummaryCardProps = {
   mode: "create" | "edit";
   name: string;
-  category: string;
+  category: AdminProductCategoryValue;
   priceLabel: string;
   stock: number;
   primaryPreviewUrl: string;
@@ -39,6 +43,7 @@ export default function ProductSummaryCard({
   galleryCount,
 }: ProductSummaryCardProps) {
   const displayName = name.trim() || "Untitled product";
+  const categoryName = getAdminProductCategoryName(category);
 
   return (
     <ProductSidebarCard
@@ -68,7 +73,7 @@ export default function ProductSummaryCard({
                 {mode === "create" ? "New record" : "Existing record"}
               </span>
               <span className="rounded-full bg-[color:color-mix(in_oklab,var(--primary)_12%,var(--card))] px-2.5 py-1 text-[0.68rem] font-medium uppercase tracking-[0.12em] text-primary">
-                {category}
+                {categoryName}
               </span>
             </div>
             <div>

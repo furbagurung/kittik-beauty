@@ -3,6 +3,7 @@ import { api } from "@/services/api";
 import { useCartStore } from "@/store/cartStore";
 import { useWishlistStore } from "@/store/wishlistStore";
 import { Product } from "@/types/product";
+import { getProductCategoryName } from "@/utils/productCategory";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams } from "expo-router";
@@ -53,7 +54,7 @@ export default function ProductDetailsScreen() {
   const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
 
   const currentProductId = product ? String(product.id) : "";
-  const currentCategory = product?.category ?? "";
+  const currentCategory = getProductCategoryName(product?.category, "");
   const selectedVariant = useMemo(() => {
     if (!product?.variants?.length) return null;
 
@@ -278,7 +279,7 @@ export default function ProductDetailsScreen() {
       name: product.name,
       price: displayPrice,
       image: displayImage ?? "",
-      category: product.category ?? "Beauty Essential",
+      category: getProductCategoryName(product.category),
       rating: product.rating ?? 4.8,
     });
   };
@@ -526,7 +527,7 @@ export default function ProductDetailsScreen() {
             </ScrollView>
           )}
           <Text style={styles.category}>
-            {product.category || "Beauty Essential"}
+            {getProductCategoryName(product.category)}
           </Text>
           <Text style={styles.name}>{product.name}</Text>
 
@@ -766,7 +767,8 @@ export default function ProductDetailsScreen() {
               <View style={styles.relatedHeader}>
                 <Text style={styles.relatedTitle}>You may also like</Text>
                 <Text style={styles.relatedSubtitle}>
-                  More picks from {product.category || "this collection"}
+                  More picks from{" "}
+                  {getProductCategoryName(product.category)}
                 </Text>
               </View>
 
@@ -788,7 +790,7 @@ export default function ProductDetailsScreen() {
 
                     <View style={styles.relatedCardContent}>
                       <Text style={styles.relatedCategory}>
-                        {item.category || "Beauty Essential"}
+                        {getProductCategoryName(item.category)}
                       </Text>
                       <Text style={styles.relatedName} numberOfLines={2}>
                         {item.name}

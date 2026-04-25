@@ -8,6 +8,7 @@ import StatusPill, {
 } from "@/components/shared/StatusPill";
 import type { AdminApiProduct } from "@/lib/api";
 import { formatCurrency, formatNumber } from "@/lib/format";
+import { getAdminProductCategoryName } from "@/lib/product-category";
 import type { ColumnDef } from "@tanstack/react-table";
 import { ArrowUpRight } from "lucide-react";
 import { useMemo } from "react";
@@ -51,7 +52,7 @@ export default function ProductsTable({
                 {row.original.name}
               </div>
               <div className="truncate text-xs text-muted-foreground">
-                {row.original.category}
+                {getAdminProductCategoryName(row.original.category)}
               </div>
             </div>
           </div>

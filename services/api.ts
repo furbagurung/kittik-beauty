@@ -1,3 +1,5 @@
+import type { ProductCategoryValue } from "@/utils/productCategory";
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL!;
 
 type RequestOptions = RequestInit & {
@@ -55,7 +57,7 @@ export type ReelProductTag = {
   product: {
     id: number;
     name: string;
-    category?: string | null;
+    category?: ProductCategoryValue;
     price: number;
     image?: string;
   };
