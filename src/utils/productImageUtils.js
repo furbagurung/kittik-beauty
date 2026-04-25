@@ -88,17 +88,15 @@ export function toStoredImagePath(value, req) {
 }
 
 export function buildPublicImageUrl(value, req) {
-  const storedPath = toStoredImagePath(value, req);
+  if (!value) return null;
+  if (value.startsWith("https://")) return value;
 
-  if (!storedPath) return null;
-  if (isHttpUrl(storedPath)) return storedPath;
-  if (storedPath.startsWith(UPLOADS_PREFIX)) {
-    return `${getPublicServerBaseUrl(req)}${storedPath}`;
-  }
+  const path = value.startsWith("/") ? value : `/${value}`;
+  const baseUrl =
+    process.env.PUBLIC_SERVER_URL || `${req.protocol}://${req.get("host")}`;
 
-  return storedPath;
+  return `${baseUrl}${path}`;
 }
-
 export function normalizeStoredGalleryImages(value, req) {
   return normalizeGalleryArray(value)
     .map((item) => toStoredImagePath(item, req))
