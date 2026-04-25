@@ -11,6 +11,19 @@ import {
 } from "../utils/orderRules.js";
 import { timeQuery } from "../utils/queryTiming.js";
 
+const ORDER_LIST_INCLUDE = {
+  orderitem: {
+    select: {
+      id: true,
+      orderId: true,
+      variantId: true,
+      name: true,
+      price: true,
+      quantity: true,
+    },
+  },
+};
+
 function buildOrderResponse(order) {
   if (!order) return order;
 
@@ -245,7 +258,7 @@ export async function getUserOrders(req, res) {
             () =>
               prisma.order.findMany({
                 where,
-                include: { orderitem: true },
+                include: ORDER_LIST_INCLUDE,
                 orderBy: { createdAt: "desc" },
                 skip: pagination.skip,
                 take: pagination.take,

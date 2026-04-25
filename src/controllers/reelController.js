@@ -65,6 +65,71 @@ const REEL_INCLUDE = (userId) => {
   return include;
 };
 
+const REEL_LIST_INCLUDE = (userId) => {
+  const include = {
+    user: {
+      select: {
+        id: true,
+        name: true,
+      },
+    },
+    reelproducttag: {
+      orderBy: { sortOrder: "asc" },
+      include: {
+        product: {
+          include: {
+            category: true,
+            productmedia: {
+              orderBy: { position: "asc" },
+              take: 1,
+            },
+            variants: {
+              where: { isDefault: true },
+              orderBy: { position: "asc" },
+              take: 1,
+            },
+          },
+        },
+        productVariant: {
+          select: {
+            id: true,
+            title: true,
+            price: true,
+            image: true,
+          },
+        },
+      },
+    },
+    _count: {
+      select: {
+        reellike: true,
+        reelsave: true,
+      },
+    },
+  };
+
+  if (userId) {
+    include.reellike = {
+      where: {
+        userId,
+      },
+      select: {
+        id: true,
+      },
+    };
+    include.reelsave = {
+      where: {
+        userId,
+      },
+      select: {
+        id: true,
+      },
+    };
+  }
+
+  return include;
+};
+
 function getUploadedFiles(req, fieldName) {
   if (!req.files || typeof req.files !== "object") return [];
 
@@ -307,7 +372,7 @@ export async function getReels(req, res) {
               prisma.reel.findMany({
                 where,
                 orderBy,
-                include: REEL_INCLUDE(userId),
+                include: REEL_LIST_INCLUDE(userId),
                 skip: pagination.skip,
                 take: pagination.take,
               }),

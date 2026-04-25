@@ -4,6 +4,7 @@ import {
   getPaginationParams,
 } from "../utils/apiPagination.js";
 import {
+  buildPublicImageUrl,
   buildProductResponse,
   deleteManagedImageFiles,
   getUploadedImagePaths,
@@ -38,7 +39,6 @@ const PRODUCT_LIST_INCLUDE = {
     orderBy: { position: "asc" },
     take: 1,
   },
-  producttag: true,
   variants: {
     where: { isDefault: true },
     orderBy: { position: "asc" },
@@ -80,6 +80,24 @@ function parseQueryBoolean(value) {
     .toLowerCase();
 
   return normalized === "true" || normalized === "1";
+}
+
+function buildProductListResponse(product, req) {
+  const defaultVariant = product.variants?.[0] ?? null;
+  const image =
+    defaultVariant?.image ??
+    product.featuredImage ??
+    product.productmedia?.[0]?.url ??
+    null;
+
+  return {
+    id: product.id,
+    name: product.title,
+    price: defaultVariant?.price ?? 0,
+    image: buildPublicImageUrl(image, req) || null,
+    category: product.category ?? product.categoryLegacy,
+    defaultVariant,
+  };
 }
 
 function normalizeProductStatus(status) {
@@ -473,9 +491,10 @@ export async function getProducts(req, res) {
           ),
         ];
 
-    const response = products.map((product) =>
-      buildProductResponse(product, req),
-    );
+    const response =
+      isPaginated && !detail
+        ? products.map((product) => buildProductListResponse(product, req))
+        : products.map((product) => buildProductResponse(product, req));
 
     if (sort === "price_asc") {
       response.sort((left, right) => left.price - right.price);
