@@ -31,11 +31,14 @@ import type {
 import { formatCurrency } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
+  Bookmark,
   Camera,
+  Heart,
   ImagePlus,
   Plus,
   RotateCcw,
   Save,
+  Share2,
   Trash2,
   UploadCloud,
   X,
@@ -51,8 +54,12 @@ type ProductTagDraft = {
 };
 
 type ReelFormProps = {
+  contained?: boolean;
   defaultValues?: AdminApiReel;
   mode: "create" | "edit";
+  onAutoSave?: (
+    values: ReelMutationInput,
+  ) => Promise<AdminApiReel | void> | AdminApiReel | void;
   onDelete?: () => Promise<void> | void;
   onSubmit: (values: ReelMutationInput) => Promise<void> | void;
   products: AdminApiProduct[];
@@ -77,6 +84,22 @@ function productLabel(product: AdminApiProduct) {
   return `${product.name} / ${formatCurrency(Number(product.price || 0))}`;
 }
 
+type ProductVariantPreview = NonNullable<AdminApiProduct["variants"]>[number];
+
+function productThumbnailUrl(
+  product: AdminApiProduct | undefined,
+  variant: ProductVariantPreview | null,
+) {
+  return (
+    variant?.image ||
+    product?.image ||
+    product?.featuredImage ||
+    product?.images?.[0] ||
+    product?.media?.find((item) => item.type !== "VIDEO")?.url ||
+    ""
+  );
+}
+
 function formatTimestamp(value: number) {
   if (!Number.isFinite(value) || value < 0) return "00:00";
 
@@ -87,14 +110,31 @@ function formatTimestamp(value: number) {
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 
+function getAutoSaveSignature(values: ReelMutationInput) {
+  return JSON.stringify({
+    ...values,
+    videoFile: values.videoFile
+      ? `${values.videoFile.name}:${values.videoFile.size}:${values.videoFile.lastModified}`
+      : null,
+    thumbnailFile: values.thumbnailFile
+      ? `${values.thumbnailFile.name}:${values.thumbnailFile.size}:${values.thumbnailFile.lastModified}`
+      : null,
+  });
+}
+
 export default function ReelForm({
+  contained = true,
   defaultValues,
   mode,
+  onAutoSave,
   onDelete,
   onSubmit,
   products,
 }: ReelFormProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const didMountAutoSaveRef = useRef(false);
+  const lastAutoSaveSignatureRef = useRef("");
   const [title, setTitle] = useState(defaultValues?.title ?? "");
   const [caption, setCaption] = useState(defaultValues?.caption ?? "");
   const [status, setStatus] = useState<ReelStatus>(
@@ -131,6 +171,9 @@ export default function ReelForm({
   );
   const [discardOpen, setDiscardOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [autoSaveStatus, setAutoSaveStatus] = useState<
+    "idle" | "pending" | "saving" | "saved" | "error"
+  >("idle");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -142,18 +185,121 @@ export default function ReelForm({
 
   const effectiveVideoUrl = videoPreviewUrl || videoUrl;
   const effectiveThumbnailUrl = thumbnailPreviewUrl || thumbnailUrl;
+  const primaryProductTag = productTags[0] ?? null;
   const isBusy = isSubmitting || isDeleting;
   const canUseFramePicker = Boolean(
     effectiveVideoUrl && videoMetadataLoaded && videoDuration > 0,
   );
   const canCaptureVideoFrame = Boolean(canUseFramePicker && videoCanPlay);
+  const mutationInput = useMemo<ReelMutationInput>(() => {
+    const normalizedTags = productTags
+      .map((tag, index) => ({
+        ctaLabel: tag.ctaLabel.trim() || "Shop now",
+        productId: Number(tag.productId),
+        sortOrder: Number(tag.sortOrder || index),
+        variantId: tag.variantId === "none" ? null : Number(tag.variantId),
+      }))
+      .filter((tag) => Number.isFinite(tag.productId) && tag.productId > 0);
+
+    return {
+      title: title.trim(),
+      caption: caption.trim(),
+      videoUrl,
+      thumbnailUrl,
+      videoFile,
+      thumbnailFile,
+      duration: duration ? Number(duration) : null,
+      status,
+      featured,
+      sortOrder: Number(sortOrder || 0),
+      productTags: normalizedTags,
+    };
+  }, [
+    caption,
+    duration,
+    featured,
+    productTags,
+    sortOrder,
+    status,
+    thumbnailFile,
+    thumbnailUrl,
+    title,
+    videoFile,
+    videoUrl,
+  ]);
 
   useEffect(() => {
     return () => {
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
       if (videoPreviewUrl) URL.revokeObjectURL(videoPreviewUrl);
       if (thumbnailPreviewUrl) URL.revokeObjectURL(thumbnailPreviewUrl);
     };
   }, [thumbnailPreviewUrl, videoPreviewUrl]);
+
+  useEffect(() => {
+    if (!onAutoSave) return;
+
+    if (!didMountAutoSaveRef.current) {
+      didMountAutoSaveRef.current = true;
+      return;
+    }
+
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+
+    const values = mutationInput;
+
+    if (!values.title || (!values.videoFile && !values.videoUrl)) {
+      return;
+    }
+
+    const signature = getAutoSaveSignature(values);
+    if (signature === lastAutoSaveSignatureRef.current) return;
+
+    setAutoSaveStatus("pending");
+    autoSaveTimerRef.current = setTimeout(async () => {
+      if (isSubmitting || isDeleting) return;
+
+      setAutoSaveStatus("saving");
+      try {
+        const savedReel = await onAutoSave(values);
+
+        if (savedReel) {
+          if (savedReel.videoUrl) {
+            setVideoUrl(savedReel.videoUrl);
+            setVideoFile(null);
+          }
+
+          if (savedReel.thumbnailUrl) {
+            setThumbnailUrl(savedReel.thumbnailUrl);
+            setThumbnailFile(null);
+          }
+
+          lastAutoSaveSignatureRef.current = getAutoSaveSignature({
+            ...values,
+            videoUrl: savedReel.videoUrl || values.videoUrl,
+            thumbnailUrl: savedReel.thumbnailUrl || values.thumbnailUrl,
+            videoFile: savedReel.videoUrl ? null : values.videoFile,
+            thumbnailFile: savedReel.thumbnailUrl ? null : values.thumbnailFile,
+          });
+        } else {
+          lastAutoSaveSignatureRef.current = signature;
+        }
+
+        setAutoSaveStatus("saved");
+      } catch {
+        setAutoSaveStatus("error");
+      }
+    }, 5000);
+
+    return () => {
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    };
+  }, [
+    isDeleting,
+    isSubmitting,
+    mutationInput,
+    onAutoSave,
+  ]);
 
   function resetForm() {
     if (videoPreviewUrl) URL.revokeObjectURL(videoPreviewUrl);
@@ -331,31 +477,11 @@ export default function ReelForm({
       return;
     }
 
-    const normalizedTags = productTags
-      .map((tag, index) => ({
-        ctaLabel: tag.ctaLabel.trim() || "Shop now",
-        productId: Number(tag.productId),
-        sortOrder: Number(tag.sortOrder || index),
-        variantId: tag.variantId === "none" ? null : Number(tag.variantId),
-      }))
-      .filter((tag) => Number.isFinite(tag.productId) && tag.productId > 0);
-
     setIsSubmitting(true);
 
     try {
-      await onSubmit({
-        title: title.trim(),
-        caption: caption.trim(),
-        videoUrl,
-        thumbnailUrl,
-        videoFile,
-        thumbnailFile,
-        duration: duration ? Number(duration) : null,
-        status,
-        featured,
-        sortOrder: Number(sortOrder || 0),
-        productTags: normalizedTags,
-      });
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+      await onSubmit(mutationInput);
     } finally {
       setIsSubmitting(false);
     }
@@ -375,259 +501,247 @@ export default function ReelForm({
   return (
     <>
       <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
-          <div className="space-y-6">
-            <Card>
+        <div
+          className={cn(
+            "grid grid-cols-1 gap-6 lg:grid-cols-[3fr_2fr] xl:grid-cols-[minmax(0,3fr)_minmax(360px,2fr)_280px]",
+            contained ? "mx-auto max-w-[1400px]" : "w-full",
+          )}
+        >
+          <div className="w-full self-start space-y-6">
+            <Card className="w-full">
               <CardHeader>
-                <CardTitle>Reel content</CardTitle>
-                <CardDescription>
-                  Upload vertical video content and keep the caption concise.
-                </CardDescription>
+                <CardTitle>Media workspace</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
                 <div className="grid gap-2">
-                  <Label htmlFor="title">Title</Label>
-                  <Input
-                    id="title"
-                    value={title}
-                    onChange={(event) => setTitle(event.target.value)}
-                    placeholder="e.g. Dewy tint routine"
-                    disabled={isBusy}
-                  />
-                </div>
-
-                <div className="grid gap-2">
-                  <Label htmlFor="caption">Caption</Label>
-                  <Textarea
-                    id="caption"
-                    value={caption}
-                    onChange={(event) => setCaption(event.target.value)}
-                    placeholder="Short shopping context for the reel."
-                    rows={4}
-                    disabled={isBusy}
-                  />
-                </div>
-
-                <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-                  <div className="grid gap-2">
-                    <Label>Video</Label>
-                    <label
-                      className={cn(
-                        "flex min-h-64 cursor-pointer flex-col items-center justify-center overflow-hidden rounded-xl border border-dashed border-border bg-muted/35 text-center transition hover:border-primary/60 hover:bg-muted/55",
-                        isBusy && "pointer-events-none opacity-60",
-                      )}
-                    >
-                      {effectiveVideoUrl ? (
-                        <video
-                          key={effectiveVideoUrl}
-                          ref={videoRef}
-                          crossOrigin={videoPreviewUrl ? undefined : "anonymous"}
-                          src={effectiveVideoUrl}
-                          className="h-80 w-full bg-black object-contain"
-                          controls
-                          muted
-                          playsInline
-                          onCanPlay={() => {
-                            setVideoCanPlay(true);
-                            setVideoTimestamp(videoRef.current?.currentTime ?? 0);
-                          }}
-                          onLoadedMetadata={(event) => {
-                            const nextDuration = event.currentTarget.duration;
-                            setVideoDuration(
-                              Number.isFinite(nextDuration) ? nextDuration : 0,
-                            );
-                            setVideoMetadataLoaded(true);
-                            setVideoTimestamp(event.currentTarget.currentTime);
-                          }}
-                          onTimeUpdate={(event) => {
-                            setVideoTimestamp(event.currentTarget.currentTime);
-                          }}
-                          onSeeked={(event) => {
-                            setVideoTimestamp(event.currentTarget.currentTime);
-                          }}
-                          onError={() => {
-                            setVideoCanPlay(false);
-                            setVideoMetadataLoaded(false);
-                            setVideoDuration(0);
-                          }}
-                        />
-                      ) : (
-                        <span className="flex flex-col items-center gap-2 px-4 py-8 text-sm text-muted-foreground">
-                          <UploadCloud className="size-5" />
-                          Upload a vertical reel video
-                        </span>
-                      )}
-                      <input
-                        type="file"
-                        accept="video/*"
-                        className="hidden"
-                        disabled={isBusy}
-                        onChange={(event) => {
-                          selectVideo(event.target.files?.[0]);
-                          event.target.value = "";
-                        }}
-                      />
-                    </label>
+                  <Label>Video</Label>
+                  <label
+                    className={cn(
+                      "group flex aspect-[9/16] w-full cursor-pointer flex-col items-center justify-center overflow-hidden rounded-xl border border-dashed border-border bg-muted/35 text-center transition hover:border-primary/60 hover:bg-muted/55",
+                      isBusy && "pointer-events-none opacity-60",
+                    )}
+                  >
                     {effectiveVideoUrl ? (
-                      <div className="grid gap-4 rounded-xl border border-border bg-muted/35 p-3">
-                        <div className="flex flex-wrap items-center justify-between gap-3">
-                          <div>
-                            <p className="text-sm font-medium text-foreground">
-                              Frame picker
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              Scrub to the best cover frame.
-                            </p>
-                          </div>
-                          <Button
-                            type="button"
-                            size="sm"
-                            onClick={captureCurrentFrameAsThumbnail}
-                            disabled={isBusy || !canCaptureVideoFrame}
-                          >
-                            <Camera className="size-4" />
-                            Capture frame
-                          </Button>
-                        </div>
-
-                        <div className="grid gap-2 sm:grid-cols-3">
-                          <div className="rounded-lg border border-border bg-background/70 px-3 py-2">
-                            <p className="text-[0.68rem] font-medium uppercase text-muted-foreground">
-                              Current
-                            </p>
-                            <p className="text-sm font-semibold text-foreground">
-                              {formatTimestamp(videoTimestamp)}
-                            </p>
-                          </div>
-                          <div className="rounded-lg border border-border bg-background/70 px-3 py-2">
-                            <p className="text-[0.68rem] font-medium uppercase text-muted-foreground">
-                              Duration
-                            </p>
-                            <p className="text-sm font-semibold text-foreground">
-                              {formatTimestamp(videoDuration)}
-                            </p>
-                          </div>
-                          <div className="rounded-lg border border-border bg-background/70 px-3 py-2">
-                            <p className="text-[0.68rem] font-medium uppercase text-muted-foreground">
-                              Captured
-                            </p>
-                            <p className="text-sm font-semibold text-foreground">
-                              {capturedThumbnailTimestamp === null
-                                ? "--:--"
-                                : formatTimestamp(capturedThumbnailTimestamp)}
-                            </p>
-                          </div>
-                        </div>
-
-                        <input
-                          type="range"
-                          min={0}
-                          max={videoDuration || 0}
-                          step={0.1}
-                          value={
-                            canUseFramePicker
-                              ? Math.min(videoTimestamp, videoDuration)
-                              : 0
-                          }
-                          onChange={(event) =>
-                            seekVideoTo(Number(event.target.value))
-                          }
-                          disabled={isBusy || !canUseFramePicker}
-                          aria-label="Select video frame timestamp"
-                          className="h-2 w-full cursor-pointer accent-primary disabled:cursor-not-allowed disabled:opacity-50"
-                        />
-
-                        <div className="flex flex-wrap gap-2">
-                          {[
-                            { label: "1s", time: 1 },
-                            { label: "25%", time: videoDuration * 0.25 },
-                            { label: "50%", time: videoDuration * 0.5 },
-                            { label: "75%", time: videoDuration * 0.75 },
-                          ].map((preset) => (
-                            <Button
-                              key={preset.label}
-                              type="button"
-                              size="sm"
-                              variant="outline"
-                              onClick={() => seekVideoTo(preset.time)}
-                              disabled={isBusy || !canUseFramePicker}
-                              className="h-8 px-3 text-xs"
-                            >
-                              {preset.label}
-                            </Button>
-                          ))}
-                        </div>
-
-                        {!videoMetadataLoaded ? (
-                          <p className="text-xs text-muted-foreground">
-                            Frame controls unlock after the video metadata loads.
-                          </p>
-                        ) : null}
-                      </div>
-                    ) : null}
-                    {captureError ? (
-                      <p className="text-xs text-destructive">{captureError}</p>
-                    ) : null}
-                  </div>
-
-                  <div className="grid gap-2">
-                    <Label>Thumbnail</Label>
-                    <label
-                      className={cn(
-                        "flex min-h-64 cursor-pointer flex-col items-center justify-center overflow-hidden rounded-xl border border-dashed border-border bg-muted/35 text-center transition hover:border-primary/60 hover:bg-muted/55",
-                        isBusy && "pointer-events-none opacity-60",
-                      )}
-                    >
-                      {effectiveThumbnailUrl ? (
-                        <img
-                          src={effectiveThumbnailUrl}
-                          alt=""
-                          className="h-80 w-full object-cover"
-                        />
-                      ) : (
-                        <span className="flex flex-col items-center gap-2 px-4 py-8 text-sm text-muted-foreground">
-                          <ImagePlus className="size-5" />
-                          Upload a cover image
-                        </span>
-                      )}
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        disabled={isBusy}
-                        onChange={(event) => {
-                          selectThumbnail(event.target.files?.[0], {
-                            source: "manual",
-                          });
-                          event.target.value = "";
+                      <video
+                        key={effectiveVideoUrl}
+                        ref={videoRef}
+                        crossOrigin={videoPreviewUrl ? undefined : "anonymous"}
+                        src={effectiveVideoUrl}
+                        className="size-full bg-black object-contain"
+                        controls
+                        muted
+                        playsInline
+                        onCanPlay={() => {
+                          setVideoCanPlay(true);
+                          setVideoTimestamp(videoRef.current?.currentTime ?? 0);
+                        }}
+                        onLoadedMetadata={(event) => {
+                          const nextDuration = event.currentTarget.duration;
+                          setVideoDuration(
+                            Number.isFinite(nextDuration) ? nextDuration : 0,
+                          );
+                          setVideoMetadataLoaded(true);
+                          setVideoTimestamp(event.currentTarget.currentTime);
+                        }}
+                        onTimeUpdate={(event) => {
+                          setVideoTimestamp(event.currentTarget.currentTime);
+                        }}
+                        onSeeked={(event) => {
+                          setVideoTimestamp(event.currentTarget.currentTime);
+                        }}
+                        onError={() => {
+                          setVideoCanPlay(false);
+                          setVideoMetadataLoaded(false);
+                          setVideoDuration(0);
                         }}
                       />
-                    </label>
-                    {capturedThumbnailTimestamp !== null ? (
-                      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border bg-muted/35 px-3 py-2">
-                        <span className="text-xs font-medium text-muted-foreground">
-                          Captured at{" "}
-                          {formatTimestamp(capturedThumbnailTimestamp)}
+                    ) : (
+                      <span className="flex max-w-52 flex-col items-center gap-3 px-4 text-sm text-muted-foreground">
+                        <span className="grid size-11 place-items-center rounded-full border border-border bg-background/80 text-foreground shadow-sm">
+                          <UploadCloud className="size-5" />
                         </span>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          onClick={resetCapturedThumbnail}
-                          disabled={isBusy}
-                          className="h-8 px-3 text-xs"
-                        >
-                          <RotateCcw className="size-3.5" />
-                          Reset to uploaded thumbnail
-                        </Button>
-                      </div>
-                    ) : null}
-                  </div>
+                        <span className="font-medium text-foreground">
+                          Choose a reel video or drag and drop
+                        </span>
+                        <span className="text-xs">
+                          MP4 recommended, vertical 9:16
+                        </span>
+                      </span>
+                    )}
+                    <input
+                      type="file"
+                      accept="video/*"
+                      className="hidden"
+                      disabled={isBusy}
+                      onChange={(event) => {
+                        selectVideo(event.target.files?.[0]);
+                        event.target.value = "";
+                      }}
+                    />
+                  </label>
                 </div>
+
+                <div className="grid gap-2">
+                  <Label>Thumbnail</Label>
+                  <label
+                    className={cn(
+                      "flex aspect-[9/16] w-full cursor-pointer flex-col items-center justify-center overflow-hidden rounded-xl border border-dashed border-border bg-muted/35 text-center transition hover:border-primary/60 hover:bg-muted/55",
+                      isBusy && "pointer-events-none opacity-60",
+                    )}
+                  >
+                    {effectiveThumbnailUrl ? (
+                      <img
+                        src={effectiveThumbnailUrl}
+                        alt=""
+                        className="size-full object-cover"
+                      />
+                    ) : (
+                      <span className="flex flex-col items-center gap-2 px-4 py-8 text-sm text-muted-foreground">
+                        <ImagePlus className="size-5" />
+                        Upload a cover image
+                      </span>
+                    )}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      disabled={isBusy}
+                      onChange={(event) => {
+                        selectThumbnail(event.target.files?.[0], {
+                          source: "manual",
+                        });
+                        event.target.value = "";
+                      }}
+                    />
+                  </label>
+                </div>
+              </div>
+
+              {effectiveVideoUrl ? (
+                <div className="grid gap-4 rounded-xl border border-border bg-muted/35 p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium text-foreground">
+                        Frame picker
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Scrub to the best cover frame.
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={captureCurrentFrameAsThumbnail}
+                      disabled={isBusy || !canCaptureVideoFrame}
+                    >
+                      <Camera className="size-4" />
+                      Capture frame
+                    </Button>
+                  </div>
+
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    <div className="rounded-lg border border-border bg-background/70 px-3 py-2">
+                      <p className="text-[0.68rem] font-medium uppercase text-muted-foreground">
+                        Current
+                      </p>
+                      <p className="text-sm font-semibold text-foreground">
+                        {formatTimestamp(videoTimestamp)}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-border bg-background/70 px-3 py-2">
+                      <p className="text-[0.68rem] font-medium uppercase text-muted-foreground">
+                        Duration
+                      </p>
+                      <p className="text-sm font-semibold text-foreground">
+                        {formatTimestamp(videoDuration)}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-border bg-background/70 px-3 py-2">
+                      <p className="text-[0.68rem] font-medium uppercase text-muted-foreground">
+                        Captured
+                      </p>
+                      <p className="text-sm font-semibold text-foreground">
+                        {capturedThumbnailTimestamp === null
+                          ? "--:--"
+                          : formatTimestamp(capturedThumbnailTimestamp)}
+                      </p>
+                    </div>
+                  </div>
+
+                  <input
+                    type="range"
+                    min={0}
+                    max={videoDuration || 0}
+                    step={0.1}
+                    value={
+                      canUseFramePicker
+                        ? Math.min(videoTimestamp, videoDuration)
+                        : 0
+                    }
+                    onChange={(event) =>
+                      seekVideoTo(Number(event.target.value))
+                    }
+                    disabled={isBusy || !canUseFramePicker}
+                    aria-label="Select video frame timestamp"
+                    className="h-2 w-full cursor-pointer accent-primary disabled:cursor-not-allowed disabled:opacity-50"
+                  />
+
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { label: "1s", time: 1 },
+                      { label: "25%", time: videoDuration * 0.25 },
+                      { label: "50%", time: videoDuration * 0.5 },
+                      { label: "75%", time: videoDuration * 0.75 },
+                    ].map((preset) => (
+                      <Button
+                        key={preset.label}
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => seekVideoTo(preset.time)}
+                        disabled={isBusy || !canUseFramePicker}
+                        className="h-8 px-3 text-xs"
+                      >
+                        {preset.label}
+                      </Button>
+                    ))}
+                  </div>
+
+                  {!videoMetadataLoaded ? (
+                    <p className="text-xs text-muted-foreground">
+                      Frame controls unlock after the video metadata loads.
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
+
+              {capturedThumbnailTimestamp !== null ? (
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border bg-muted/35 px-3 py-2">
+                  <span className="text-xs font-medium text-muted-foreground">
+                    Captured at {formatTimestamp(capturedThumbnailTimestamp)}
+                  </span>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={resetCapturedThumbnail}
+                    disabled={isBusy}
+                    className="h-8 px-3 text-xs"
+                  >
+                    <RotateCcw className="size-3.5" />
+                    Reset to uploaded thumbnail
+                  </Button>
+                </div>
+              ) : null}
+
+              {captureError ? (
+                <p className="text-xs text-destructive">{captureError}</p>
+              ) : null}
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="w-full">
               <CardHeader>
                 <CardTitle>Shoppable products</CardTitle>
                 <CardDescription>
@@ -639,13 +753,56 @@ export default function ReelForm({
                   productTags.map((tag, index) => {
                     const selectedProduct = productById.get(tag.productId);
                     const variants = selectedProduct?.variants ?? [];
+                    const selectedVariant =
+                      tag.variantId === "none"
+                        ? null
+                        : variants.find(
+                            (variant) => String(variant.id) === tag.variantId,
+                          ) ?? null;
+                    const selectedThumbnailUrl = productThumbnailUrl(
+                      selectedProduct,
+                      selectedVariant,
+                    );
 
                     return (
                       <div
                         key={`${tag.productId}-${index}`}
                         className="rounded-xl border border-border bg-card p-3"
                       >
-                        <div className="grid gap-3 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_140px_44px]">
+                        <div className="grid gap-3">
+                          <div className="flex gap-3 rounded-xl border border-border bg-muted/30 p-2.5">
+                            {selectedThumbnailUrl ? (
+                              <img
+                                src={selectedThumbnailUrl}
+                                alt=""
+                                className="size-16 shrink-0 rounded-xl border border-border object-cover"
+                              />
+                            ) : (
+                              <div className="grid size-16 shrink-0 place-items-center rounded-xl border border-dashed border-border bg-background/70 text-muted-foreground">
+                                <ImagePlus className="size-5" />
+                              </div>
+                            )}
+                            <div className="min-w-0 py-1">
+                              <p className="truncate text-sm font-medium text-foreground">
+                                {selectedProduct?.name ?? "Select a product"}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {selectedProduct
+                                  ? formatCurrency(
+                                      Number(
+                                        selectedVariant?.price ??
+                                          selectedProduct.price ??
+                                          0,
+                                      ),
+                                    )
+                                  : "No product selected"}
+                              </p>
+                              <p className="truncate text-xs text-muted-foreground">
+                                {selectedVariant?.title ?? "Any variant"}
+                              </p>
+                            </div>
+                          </div>
+
                           <div className="grid gap-2">
                             <Label className="text-xs">Product</Label>
                             <Select
@@ -722,7 +879,7 @@ export default function ReelForm({
                             />
                           </div>
 
-                          <div className="flex items-end">
+                          <div className="flex justify-end">
                             <Button
                               type="button"
                               variant="outline"
@@ -758,15 +915,35 @@ export default function ReelForm({
             </Card>
           </div>
 
-          <div className="self-start space-y-6 xl:sticky xl:top-28">
+          <div className="w-full max-w-[620px] self-start space-y-6 lg:sticky lg:top-28">
             <Card>
               <CardHeader>
-                <CardTitle>Publishing</CardTitle>
-                <CardDescription>
-                  Control feed visibility and ordering.
-                </CardDescription>
+                <CardTitle>Reel information</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="title">Title</Label>
+                  <Input
+                    id="title"
+                    value={title}
+                    onChange={(event) => setTitle(event.target.value)}
+                    placeholder="e.g. Dewy tint routine"
+                    disabled={isBusy}
+                  />
+                </div>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="caption">Caption</Label>
+                  <Textarea
+                    id="caption"
+                    value={caption}
+                    onChange={(event) => setCaption(event.target.value)}
+                    placeholder="Short shopping context for the reel."
+                    rows={4}
+                    disabled={isBusy}
+                  />
+                </div>
+
                 <div className="grid gap-2">
                   <Label>Status</Label>
                   <Select
@@ -805,30 +982,6 @@ export default function ReelForm({
                   />
                 </label>
 
-                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-                  <div className="grid gap-2">
-                    <Label htmlFor="sortOrder">Sort order</Label>
-                    <Input
-                      id="sortOrder"
-                      type="number"
-                      value={sortOrder}
-                      onChange={(event) => setSortOrder(event.target.value)}
-                      disabled={isBusy}
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="duration">Duration seconds</Label>
-                    <Input
-                      id="duration"
-                      type="number"
-                      min={0}
-                      value={duration}
-                      onChange={(event) => setDuration(event.target.value)}
-                      disabled={isBusy}
-                    />
-                  </div>
-                </div>
-
                 {defaultValues ? (
                   <div className="grid gap-2 rounded-xl border border-border bg-muted/35 p-3 text-sm">
                     <div className="flex items-center justify-between gap-3">
@@ -841,10 +994,14 @@ export default function ReelForm({
                     </div>
                     <div className="flex items-center justify-between gap-3">
                       <span className="text-muted-foreground">Shares</span>
-                      <Badge variant="outline">{defaultValues.shareCount}</Badge>
+                      <Badge variant="outline">
+                        {defaultValues.shareCount}
+                      </Badge>
                     </div>
                     <div className="flex items-center justify-between gap-3">
-                      <span className="text-muted-foreground">Product clicks</span>
+                      <span className="text-muted-foreground">
+                        Product clicks
+                      </span>
                       <Badge variant="outline">
                         {defaultValues.productClickCount}
                       </Badge>
@@ -853,14 +1010,33 @@ export default function ReelForm({
                 ) : null}
               </CardContent>
               <CardFooter className="justify-between gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setDiscardOpen(true)}
-                  disabled={isBusy}
-                >
-                  Discard
-                </Button>
+                <div className="flex flex-wrap items-center gap-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setDiscardOpen(true)}
+                    disabled={isBusy}
+                  >
+                    Discard
+                  </Button>
+                  {onAutoSave && autoSaveStatus !== "idle" ? (
+                    <span
+                      className={cn(
+                        "text-xs font-medium",
+                        autoSaveStatus === "error"
+                          ? "text-destructive"
+                          : "text-muted-foreground",
+                      )}
+                    >
+                      {autoSaveStatus === "saving" ||
+                      autoSaveStatus === "pending"
+                        ? "Saving..."
+                        : autoSaveStatus === "saved"
+                          ? "Saved"
+                          : "Auto-save failed"}
+                    </span>
+                  ) : null}
+                </div>
                 <Button type="submit" disabled={isBusy}>
                   <Save className="size-4" />
                   {isSubmitting
@@ -895,6 +1071,79 @@ export default function ReelForm({
               </Card>
             ) : null}
           </div>
+
+          <aside className="hidden xl:block">
+            <Card className="sticky top-24 overflow-hidden border-border/80 bg-background/95 shadow-sm">
+              <CardHeader className="pb-3">
+                <CardTitle>Mobile preview</CardTitle>
+                <CardDescription>
+                  Buyer app reel preview.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="relative aspect-[9/16] overflow-hidden rounded-[32px] border border-border/70 bg-black shadow-2xl shadow-foreground/15">
+                  {effectiveVideoUrl ? (
+                    <video
+                      key={`preview-${effectiveVideoUrl}`}
+                      src={effectiveVideoUrl}
+                      className="size-full object-cover"
+                      muted
+                      playsInline
+                      loop
+                      autoPlay
+                    />
+                  ) : effectiveThumbnailUrl ? (
+                    <img
+                      src={effectiveThumbnailUrl}
+                      alt=""
+                      className="size-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex size-full flex-col items-center justify-center gap-3 bg-muted/10 px-6 text-center text-sm text-white/65">
+                      <UploadCloud className="size-8" />
+                      <span>Preview appears after media is selected.</span>
+                    </div>
+                  )}
+
+                  <div className="pointer-events-none absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-black via-black/70 to-transparent" />
+
+                  <div className="absolute bottom-5 left-5 right-16 space-y-2 text-white">
+                    <p className="line-clamp-2 text-sm font-semibold leading-5">
+                      {title.trim() || "Untitled reel"}
+                    </p>
+                    {caption.trim() ? (
+                      <p className="line-clamp-2 text-xs leading-4 text-white/80">
+                        {caption.trim()}
+                      </p>
+                    ) : null}
+                    {primaryProductTag ? (
+                      <span className="inline-flex h-8 items-center rounded-full bg-white px-3 text-xs font-semibold text-foreground shadow-sm">
+                        {primaryProductTag.ctaLabel.trim() || "Shop now"}
+                      </span>
+                    ) : null}
+                  </div>
+
+                  <div className="absolute bottom-20 right-4 flex flex-col items-center gap-4 text-white">
+                    {[
+                      { icon: Heart, label: "Like" },
+                      { icon: Bookmark, label: "Save" },
+                      { icon: Share2, label: "Share" },
+                    ].map(({ icon: Icon, label }) => (
+                      <div
+                        key={label}
+                        className="grid gap-1 text-center text-[0.65rem] font-medium text-white/80"
+                      >
+                        <span className="grid size-9 place-items-center rounded-full bg-black/35 backdrop-blur-sm">
+                          <Icon className="size-4" />
+                        </span>
+                        <span>{label}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </aside>
         </div>
       </form>
 

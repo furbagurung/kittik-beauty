@@ -14,13 +14,14 @@ import {
 } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
 export default function EditReelPage() {
   const params = useParams();
   const router = useRouter();
   const id = Number(params.id);
+  const invalidId = !Number.isFinite(id) || id <= 0;
 
   const [reel, setReel] = useState<AdminApiReel | null>(null);
   const [products, setProducts] = useState<AdminApiProduct[]>([]);
@@ -55,19 +56,14 @@ export default function EditReelPage() {
       }
     }
 
-    if (!Number.isFinite(id) || id <= 0) {
-      setReel(null);
-      setErrorMessage("");
-      setLoading(false);
-      return () => {};
-    }
+    if (invalidId) return;
 
     loadReel();
 
     return () => {
       cancelled = true;
     };
-  }, [id]);
+  }, [id, invalidId]);
 
   async function handleUpdate(values: ReelMutationInput) {
     try {
@@ -79,6 +75,15 @@ export default function EditReelPage() {
     }
   }
 
+  const handleAutoSave = useCallback(
+    async (values: ReelMutationInput) => {
+      const savedReel = await updateReel(id, values);
+      setReel(savedReel);
+      return savedReel;
+    },
+    [id],
+  );
+
   async function handleDelete() {
     try {
       await deleteReel(id);
@@ -87,6 +92,10 @@ export default function EditReelPage() {
     } catch (error) {
       toast.error(getErrorMessage(error, "Failed to delete reel"));
     }
+  }
+
+  if (invalidId) {
+    return <Notice tone="warn" message="Reel not found." />;
   }
 
   if (loading) {
@@ -102,7 +111,7 @@ export default function EditReelPage() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="mx-auto max-w-[1400px] px-4">
       <PageHeader
         kicker="Catalog"
         title={reel.title}
@@ -111,9 +120,11 @@ export default function EditReelPage() {
 
       <ReelForm
         key={reel.id}
+        contained={false}
         mode="edit"
         defaultValues={reel}
         products={products}
+        onAutoSave={handleAutoSave}
         onSubmit={handleUpdate}
         onDelete={handleDelete}
       />
