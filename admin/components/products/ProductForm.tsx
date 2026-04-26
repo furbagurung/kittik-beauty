@@ -14,6 +14,7 @@ import {
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 
+import ProductDescriptionEditor from "@/components/products/ProductDescriptionEditor";
 import ProductEditorHeader from "@/components/products/ProductEditorHeader";
 import ProductMediaSection from "@/components/products/ProductMediaSection";
 import ProductSidebarCard from "@/components/products/ProductSidebarCard";
@@ -270,8 +271,8 @@ export default function ProductForm({
   );
   const [price, setPrice] = useState(defaultValues?.price ?? "");
   const [stock, setStock] = useState<number>(defaultValues?.stock ?? 0);
-  const [categoryId, setCategoryId] = useState(
-    () => resolveInitialCategoryId(defaultValues, [], mode),
+  const [categoryId, setCategoryId] = useState(() =>
+    resolveInitialCategoryId(defaultValues, [], mode),
   );
   const [categories, setCategories] = useState<AdminApiProductCategory[]>([]);
   const [categoriesLoaded, setCategoriesLoaded] = useState(false);
@@ -427,8 +428,9 @@ export default function ProductForm({
   useEffect(() => {
     if (!categoriesLoaded) return;
 
-    setCategoryId((current) =>
-      current || resolveInitialCategoryId(defaultValues, categories, mode),
+    setCategoryId(
+      (current) =>
+        current || resolveInitialCategoryId(defaultValues, categories, mode),
     );
   }, [
     categories,
@@ -1050,14 +1052,11 @@ export default function ProductForm({
             </ProductEditorField>
 
             <ProductEditorField htmlFor="description" label="Description">
-              <Textarea
+              <ProductDescriptionEditor
                 id="description"
-                name="description"
                 placeholder="Write a concise, useful description for shoppers and operators."
-                rows={5}
                 value={description}
-                onChange={(event) => setDescription(event.target.value)}
-                className="min-h-28 rounded-lg px-3.5 py-2.5 text-sm leading-6"
+                onChange={setDescription}
                 disabled={isBusy}
               />
             </ProductEditorField>
@@ -1081,10 +1080,7 @@ export default function ProductForm({
 
             <div className="rounded-lg border border-transparent py-1.5">
               <div className="grid gap-4 xl:grid-cols-[1.2fr_1fr_1fr]">
-                <ProductEditorField
-                  label="Category"
-                  helper="Category helps shoppers browse and keeps the catalog organized."
-                >
+                <ProductEditorField label="Category">
                   <div className="relative">
                     <FolderKanban className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                     <Select
