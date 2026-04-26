@@ -34,6 +34,7 @@ import {
   Camera,
   ImagePlus,
   Plus,
+  RotateCcw,
   Save,
   Trash2,
   UploadCloud,
@@ -77,14 +78,13 @@ function productLabel(product: AdminApiProduct) {
 }
 
 function formatTimestamp(value: number) {
-  if (!Number.isFinite(value) || value < 0) return "0:00.0";
+  if (!Number.isFinite(value) || value < 0) return "00:00";
 
   const totalSeconds = Math.floor(value);
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
-  const tenths = Math.floor((value - totalSeconds) * 10);
 
-  return `${minutes}:${String(seconds).padStart(2, "0")}.${tenths}`;
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 
 export default function ReelForm({
@@ -113,9 +113,14 @@ export default function ReelForm({
   );
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
+  const [manualThumbnailFile, setManualThumbnailFile] = useState<File | null>(
+    null,
+  );
   const [videoPreviewUrl, setVideoPreviewUrl] = useState("");
   const [thumbnailPreviewUrl, setThumbnailPreviewUrl] = useState("");
   const [videoCanPlay, setVideoCanPlay] = useState(false);
+  const [videoMetadataLoaded, setVideoMetadataLoaded] = useState(false);
+  const [videoDuration, setVideoDuration] = useState(0);
   const [videoTimestamp, setVideoTimestamp] = useState(0);
   const [capturedThumbnailTimestamp, setCapturedThumbnailTimestamp] = useState<
     number | null
@@ -138,7 +143,10 @@ export default function ReelForm({
   const effectiveVideoUrl = videoPreviewUrl || videoUrl;
   const effectiveThumbnailUrl = thumbnailPreviewUrl || thumbnailUrl;
   const isBusy = isSubmitting || isDeleting;
-  const canCaptureVideoFrame = Boolean(effectiveVideoUrl && videoCanPlay);
+  const canUseFramePicker = Boolean(
+    effectiveVideoUrl && videoMetadataLoaded && videoDuration > 0,
+  );
+  const canCaptureVideoFrame = Boolean(canUseFramePicker && videoCanPlay);
 
   useEffect(() => {
     return () => {
@@ -163,9 +171,12 @@ export default function ReelForm({
     setThumbnailUrl(defaultValues?.thumbnailUrl ?? "");
     setVideoFile(null);
     setThumbnailFile(null);
+    setManualThumbnailFile(null);
     setVideoPreviewUrl("");
     setThumbnailPreviewUrl("");
     setVideoCanPlay(false);
+    setVideoMetadataLoaded(false);
+    setVideoDuration(0);
     setVideoTimestamp(0);
     setCapturedThumbnailTimestamp(null);
     setCaptureError("");
@@ -178,19 +189,51 @@ export default function ReelForm({
     setVideoFile(file);
     setVideoPreviewUrl(URL.createObjectURL(file));
     setVideoCanPlay(false);
+    setVideoMetadataLoaded(false);
+    setVideoDuration(0);
     setVideoTimestamp(0);
     setCaptureError("");
   }
 
   function selectThumbnail(
     file: File | undefined,
-    options?: { capturedAt?: number | null },
+    options?: { capturedAt?: number | null; source?: "manual" | "capture" },
   ) {
     if (!file) return;
     if (thumbnailPreviewUrl) URL.revokeObjectURL(thumbnailPreviewUrl);
+
+    if (options?.source !== "capture") {
+      setManualThumbnailFile(file);
+    }
+
     setThumbnailFile(file);
     setThumbnailPreviewUrl(URL.createObjectURL(file));
     setCapturedThumbnailTimestamp(options?.capturedAt ?? null);
+    setCaptureError("");
+  }
+
+  function seekVideoTo(value: number) {
+    const video = videoRef.current;
+    if (!video || !canUseFramePicker) return;
+
+    const nextTime = Math.min(Math.max(value, 0), videoDuration);
+    video.currentTime = nextTime;
+    setVideoTimestamp(nextTime);
+  }
+
+  function resetCapturedThumbnail() {
+    if (thumbnailPreviewUrl) URL.revokeObjectURL(thumbnailPreviewUrl);
+
+    if (manualThumbnailFile) {
+      setThumbnailFile(manualThumbnailFile);
+      setThumbnailPreviewUrl(URL.createObjectURL(manualThumbnailFile));
+    } else {
+      setThumbnailFile(null);
+      setThumbnailPreviewUrl("");
+      setThumbnailUrl(defaultValues?.thumbnailUrl ?? "");
+    }
+
+    setCapturedThumbnailTimestamp(null);
     setCaptureError("");
   }
 
@@ -241,7 +284,7 @@ export default function ReelForm({
         },
       );
 
-      selectThumbnail(file, { capturedAt: currentTime });
+      selectThumbnail(file, { capturedAt: currentTime, source: "capture" });
       setVideoTimestamp(currentTime);
       toast.success(`Thumbnail captured at ${formatTimestamp(currentTime)}`);
     } catch {
@@ -389,6 +432,11 @@ export default function ReelForm({
                             setVideoTimestamp(videoRef.current?.currentTime ?? 0);
                           }}
                           onLoadedMetadata={(event) => {
+                            const nextDuration = event.currentTarget.duration;
+                            setVideoDuration(
+                              Number.isFinite(nextDuration) ? nextDuration : 0,
+                            );
+                            setVideoMetadataLoaded(true);
                             setVideoTimestamp(event.currentTarget.currentTime);
                           }}
                           onTimeUpdate={(event) => {
@@ -399,6 +447,8 @@ export default function ReelForm({
                           }}
                           onError={() => {
                             setVideoCanPlay(false);
+                            setVideoMetadataLoaded(false);
+                            setVideoDuration(0);
                           }}
                         />
                       ) : (
@@ -419,20 +469,72 @@ export default function ReelForm({
                       />
                     </label>
                     {effectiveVideoUrl ? (
-                      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border bg-muted/35 px-3 py-2">
-                        <span className="text-xs font-medium text-muted-foreground">
-                          Current frame {formatTimestamp(videoTimestamp)}
-                        </span>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          onClick={captureCurrentFrameAsThumbnail}
-                          disabled={isBusy || !canCaptureVideoFrame}
-                        >
-                          <Camera className="size-4" />
-                          Use current frame as thumbnail
-                        </Button>
+                      <div className="grid gap-3 rounded-xl border border-border bg-muted/35 p-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div>
+                            <p className="text-sm font-medium text-foreground">
+                              Frame picker
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {formatTimestamp(videoTimestamp)} /{" "}
+                              {formatTimestamp(videoDuration)}
+                            </p>
+                          </div>
+                          <Button
+                            type="button"
+                            size="sm"
+                            onClick={captureCurrentFrameAsThumbnail}
+                            disabled={isBusy || !canCaptureVideoFrame}
+                          >
+                            <Camera className="size-4" />
+                            Capture current frame
+                          </Button>
+                        </div>
+
+                        <input
+                          type="range"
+                          min={0}
+                          max={videoDuration || 0}
+                          step={0.1}
+                          value={
+                            canUseFramePicker
+                              ? Math.min(videoTimestamp, videoDuration)
+                              : 0
+                          }
+                          onChange={(event) =>
+                            seekVideoTo(Number(event.target.value))
+                          }
+                          disabled={isBusy || !canUseFramePicker}
+                          aria-label="Select video frame timestamp"
+                          className="h-2 w-full cursor-pointer accent-primary disabled:cursor-not-allowed disabled:opacity-50"
+                        />
+
+                        <div className="flex flex-wrap gap-2">
+                          {[
+                            { label: "1s", time: 1 },
+                            { label: "25%", time: videoDuration * 0.25 },
+                            { label: "50%", time: videoDuration * 0.5 },
+                            { label: "75%", time: videoDuration * 0.75 },
+                          ].map((preset) => (
+                            <Button
+                              key={preset.label}
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              onClick={() => seekVideoTo(preset.time)}
+                              disabled={isBusy || !canUseFramePicker}
+                              className="h-8 px-3 text-xs"
+                            >
+                              {preset.label}
+                            </Button>
+                          ))}
+                        </div>
+
+                        {!videoMetadataLoaded ? (
+                          <p className="text-xs text-muted-foreground">
+                            Frame controls unlock after the video metadata loads.
+                          </p>
+                        ) : null}
                       </div>
                     ) : null}
                     {captureError ? (
@@ -466,15 +568,30 @@ export default function ReelForm({
                         className="hidden"
                         disabled={isBusy}
                         onChange={(event) => {
-                          selectThumbnail(event.target.files?.[0]);
+                          selectThumbnail(event.target.files?.[0], {
+                            source: "manual",
+                          });
                           event.target.value = "";
                         }}
                       />
                     </label>
                     {capturedThumbnailTimestamp !== null ? (
-                      <div className="rounded-xl border border-border bg-muted/35 px-3 py-2 text-xs font-medium text-muted-foreground">
-                        Captured frame{" "}
-                        {formatTimestamp(capturedThumbnailTimestamp)}
+                      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border bg-muted/35 px-3 py-2">
+                        <span className="text-xs font-medium text-muted-foreground">
+                          Captured at{" "}
+                          {formatTimestamp(capturedThumbnailTimestamp)}
+                        </span>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={resetCapturedThumbnail}
+                          disabled={isBusy}
+                          className="h-8 px-3 text-xs"
+                        >
+                          <RotateCcw className="size-3.5" />
+                          Reset to uploaded thumbnail
+                        </Button>
                       </div>
                     ) : null}
                   </div>
