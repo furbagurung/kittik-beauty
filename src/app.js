@@ -2,9 +2,9 @@ import cors from "cors";
 import express from "express";
 import path from "path";
 import authRoutes from "./routes/authRoutes.js";
+import categoryRoutes from "./routes/categoryRoutes.js";
 import orderRoutes from "./routes/orderRoutes.js";
 import paymentRoutes from "./routes/paymentRoutes.js";
-import categoryRoutes from "./routes/categoryRoutes.js";
 import productRoutes from "./routes/productRoutes.js";
 import reelRoutes from "./routes/reelRoutes.js";
 
@@ -45,5 +45,5 @@ app.get("/", (_req, res) => {
 app.use((req, res) => {
   res.status(404).json({ message: "Route not found" });
 });
-
+app.set("trust proxy", true);
 export default app;
