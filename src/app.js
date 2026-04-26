@@ -15,6 +15,7 @@ const corsOrigins = (process.env.CORS_ORIGINS || "")
   .map((origin) => origin.trim())
   .filter(Boolean);
 app.set("trust proxy", true);
+
 app.use(
   cors({
     origin: corsOrigins.length ? corsOrigins : defaultCorsOrigins,
