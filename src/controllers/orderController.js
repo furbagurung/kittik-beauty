@@ -230,7 +230,6 @@ export async function getUserOrders(req, res) {
   try {
     const pagination = getPaginationParams(req.query);
     const { page, limit, isPaginated } = pagination;
-    console.log("Pagination:", { page, limit, isPaginated });
     const queryContext = {
       route: "GET /api/orders",
       page: isPaginated ? page : undefined,

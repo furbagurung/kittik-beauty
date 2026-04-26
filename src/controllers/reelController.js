@@ -15,8 +15,6 @@ import {
   reelPublicPathToAbsolutePath,
 } from "../utils/reelThumbnailUtils.js";
 
-const UPLOADS_ROOT =
-  process.env.UPLOADS_ROOT || path.resolve(process.cwd(), "uploads");
 const REEL_INCLUDE = (userId) => {
   const include = {
     user: {
@@ -151,23 +149,36 @@ function getUploadedReelPaths(files = []) {
     .map((filename) => `/uploads/reels/${filename}`);
 }
 
-async function tryGenerateReelThumbnail(videoUrl) {
+function logAutoThumbnailSkipped(context, reason, details = {}) {
+  console.info("Auto thumbnail skipped:", {
+    context,
+    reason,
+    ...details,
+  });
+}
+
+async function tryGenerateReelThumbnail(videoUrl, context) {
   const videoPath = reelPublicPathToAbsolutePath(videoUrl);
   const thumbnailPaths = buildGeneratedReelThumbnailPaths(videoUrl);
 
   if (!videoPath || !thumbnailPaths) {
+    logAutoThumbnailSkipped(context, "video path is not a managed reel upload", {
+      videoUrl,
+    });
     return null;
   }
 
   try {
-   await generateReelThumbnail(
-  videoPath,
-  thumbnailPaths.absolutePath,
-  "00:00:01"
-);
+    await generateReelThumbnail(videoPath, thumbnailPaths.absolutePath);
+    console.info("Auto thumbnail generated:", {
+      context,
+      videoUrl,
+      thumbnailUrl: thumbnailPaths.publicPath,
+    });
     return thumbnailPaths.publicPath;
   } catch (error) {
-    console.error("Failed to generate reel thumbnail:", {
+    console.error("Auto thumbnail failed:", {
+      context,
       videoUrl,
       outputPath: thumbnailPaths.absolutePath,
       error: error?.message || error,
@@ -376,7 +387,6 @@ export async function getReels(req, res) {
     const userId = req.user?.id ? Number(req.user.id) : null;
     const pagination = getPaginationParams(req.query);
     const { page, limit, isPaginated } = pagination;
-    console.log("Pagination:", { page, limit, isPaginated });
     const where = {
       status: "ACTIVE",
     };
@@ -889,8 +899,20 @@ export async function createReel(req, res) {
       return res.status(400).json({ message: "Title and video are required" });
     }
 
-    if (!thumbnailUrl && uploadedVideoPaths[0]) {
-      const generatedThumbnailUrl = await tryGenerateReelThumbnail(videoUrl);
+    if (thumbnailUrl) {
+      logAutoThumbnailSkipped("createReel", "thumbnail already provided", {
+        videoUrl,
+        thumbnailUrl,
+      });
+    } else if (!uploadedVideoPaths[0]) {
+      logAutoThumbnailSkipped("createReel", "video was not uploaded", {
+        videoUrl,
+      });
+    } else {
+      const generatedThumbnailUrl = await tryGenerateReelThumbnail(
+        videoUrl,
+        "createReel",
+      );
 
       if (generatedThumbnailUrl) {
         thumbnailUrl = generatedThumbnailUrl;
@@ -981,8 +1003,22 @@ export async function updateReel(req, res) {
       return res.status(400).json({ message: "Title and video are required" });
     }
 
-    if (uploadedVideoPaths[0] && !hasNewThumbnailInput) {
-      const generatedThumbnailUrl = await tryGenerateReelThumbnail(nextVideoUrl);
+    if (!uploadedVideoPaths[0]) {
+      logAutoThumbnailSkipped("updateReel", "video was not changed", {
+        reelId: id,
+        videoUrl: nextVideoUrl,
+      });
+    } else if (hasNewThumbnailInput) {
+      logAutoThumbnailSkipped("updateReel", "thumbnail already provided", {
+        reelId: id,
+        videoUrl: nextVideoUrl,
+        thumbnailUrl: uploadedThumbnailPaths[0] ?? requestedThumbnailUrl,
+      });
+    } else {
+      const generatedThumbnailUrl = await tryGenerateReelThumbnail(
+        nextVideoUrl,
+        "updateReel",
+      );
 
       if (generatedThumbnailUrl) {
         nextThumbnailUrl = generatedThumbnailUrl;

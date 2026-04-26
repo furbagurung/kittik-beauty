@@ -469,15 +469,14 @@ export default function ReelForm({
                       />
                     </label>
                     {effectiveVideoUrl ? (
-                      <div className="grid gap-3 rounded-xl border border-border bg-muted/35 p-3">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="grid gap-4 rounded-xl border border-border bg-muted/35 p-3">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
                           <div>
                             <p className="text-sm font-medium text-foreground">
                               Frame picker
                             </p>
                             <p className="text-xs text-muted-foreground">
-                              {formatTimestamp(videoTimestamp)} /{" "}
-                              {formatTimestamp(videoDuration)}
+                              Scrub to the best cover frame.
                             </p>
                           </div>
                           <Button
@@ -487,8 +486,37 @@ export default function ReelForm({
                             disabled={isBusy || !canCaptureVideoFrame}
                           >
                             <Camera className="size-4" />
-                            Capture current frame
+                            Capture frame
                           </Button>
+                        </div>
+
+                        <div className="grid gap-2 sm:grid-cols-3">
+                          <div className="rounded-lg border border-border bg-background/70 px-3 py-2">
+                            <p className="text-[0.68rem] font-medium uppercase text-muted-foreground">
+                              Current
+                            </p>
+                            <p className="text-sm font-semibold text-foreground">
+                              {formatTimestamp(videoTimestamp)}
+                            </p>
+                          </div>
+                          <div className="rounded-lg border border-border bg-background/70 px-3 py-2">
+                            <p className="text-[0.68rem] font-medium uppercase text-muted-foreground">
+                              Duration
+                            </p>
+                            <p className="text-sm font-semibold text-foreground">
+                              {formatTimestamp(videoDuration)}
+                            </p>
+                          </div>
+                          <div className="rounded-lg border border-border bg-background/70 px-3 py-2">
+                            <p className="text-[0.68rem] font-medium uppercase text-muted-foreground">
+                              Captured
+                            </p>
+                            <p className="text-sm font-semibold text-foreground">
+                              {capturedThumbnailTimestamp === null
+                                ? "--:--"
+                                : formatTimestamp(capturedThumbnailTimestamp)}
+                            </p>
+                          </div>
                         </div>
 
                         <input

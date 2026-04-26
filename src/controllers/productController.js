@@ -424,7 +424,6 @@ export async function getProducts(req, res) {
     const detail = parseQueryBoolean(req.query.detail);
     const pagination = getPaginationParams(req.query);
     const { page, limit, isPaginated } = pagination;
-    console.log("Pagination:", { page, limit, isPaginated });
     const where = {
       ...(categoryFilter
         ? {
