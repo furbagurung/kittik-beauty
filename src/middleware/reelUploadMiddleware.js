@@ -1,8 +1,7 @@
 import fs from "fs";
 import multer from "multer";
 import path from "path";
-
-const REEL_UPLOAD_DIR = path.join(process.cwd(), "uploads", "reels");
+import { REEL_UPLOAD_DIR } from "../config/uploads.js";
 
 fs.mkdirSync(REEL_UPLOAD_DIR, { recursive: true });
 

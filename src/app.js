@@ -1,6 +1,6 @@
 import cors from "cors";
 import express from "express";
-import path from "path";
+import { UPLOADS_ROOT } from "./config/uploads.js";
 import authRoutes from "./routes/authRoutes.js";
 import categoryRoutes from "./routes/categoryRoutes.js";
 import orderRoutes from "./routes/orderRoutes.js";
@@ -24,7 +24,7 @@ app.use(
 );
 
 app.use(express.json());
-app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
+app.use("/uploads", express.static(UPLOADS_ROOT));
 
 app.get("/api/health", (_req, res) => {
   res.json({

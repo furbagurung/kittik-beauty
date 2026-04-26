@@ -30,8 +30,16 @@ import type {
 } from "@/lib/api";
 import { formatCurrency } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { ImagePlus, Plus, Save, Trash2, UploadCloud, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import {
+  Camera,
+  ImagePlus,
+  Plus,
+  Save,
+  Trash2,
+  UploadCloud,
+  X,
+} from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 type ProductTagDraft = {
@@ -68,6 +76,17 @@ function productLabel(product: AdminApiProduct) {
   return `${product.name} / ${formatCurrency(Number(product.price || 0))}`;
 }
 
+function formatTimestamp(value: number) {
+  if (!Number.isFinite(value) || value < 0) return "0:00.0";
+
+  const totalSeconds = Math.floor(value);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  const tenths = Math.floor((value - totalSeconds) * 10);
+
+  return `${minutes}:${String(seconds).padStart(2, "0")}.${tenths}`;
+}
+
 export default function ReelForm({
   defaultValues,
   mode,
@@ -75,6 +94,7 @@ export default function ReelForm({
   onSubmit,
   products,
 }: ReelFormProps) {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
   const [title, setTitle] = useState(defaultValues?.title ?? "");
   const [caption, setCaption] = useState(defaultValues?.caption ?? "");
   const [status, setStatus] = useState<ReelStatus>(
@@ -95,6 +115,12 @@ export default function ReelForm({
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
   const [videoPreviewUrl, setVideoPreviewUrl] = useState("");
   const [thumbnailPreviewUrl, setThumbnailPreviewUrl] = useState("");
+  const [videoCanPlay, setVideoCanPlay] = useState(false);
+  const [videoTimestamp, setVideoTimestamp] = useState(0);
+  const [capturedThumbnailTimestamp, setCapturedThumbnailTimestamp] = useState<
+    number | null
+  >(null);
+  const [captureError, setCaptureError] = useState("");
   const [productTags, setProductTags] = useState<ProductTagDraft[]>(() =>
     buildInitialTags(defaultValues),
   );
@@ -112,6 +138,7 @@ export default function ReelForm({
   const effectiveVideoUrl = videoPreviewUrl || videoUrl;
   const effectiveThumbnailUrl = thumbnailPreviewUrl || thumbnailUrl;
   const isBusy = isSubmitting || isDeleting;
+  const canCaptureVideoFrame = Boolean(effectiveVideoUrl && videoCanPlay);
 
   useEffect(() => {
     return () => {
@@ -138,6 +165,10 @@ export default function ReelForm({
     setThumbnailFile(null);
     setVideoPreviewUrl("");
     setThumbnailPreviewUrl("");
+    setVideoCanPlay(false);
+    setVideoTimestamp(0);
+    setCapturedThumbnailTimestamp(null);
+    setCaptureError("");
     setProductTags(buildInitialTags(defaultValues));
   }
 
@@ -146,13 +177,79 @@ export default function ReelForm({
     if (videoPreviewUrl) URL.revokeObjectURL(videoPreviewUrl);
     setVideoFile(file);
     setVideoPreviewUrl(URL.createObjectURL(file));
+    setVideoCanPlay(false);
+    setVideoTimestamp(0);
+    setCaptureError("");
   }
 
-  function selectThumbnail(file: File | undefined) {
+  function selectThumbnail(
+    file: File | undefined,
+    options?: { capturedAt?: number | null },
+  ) {
     if (!file) return;
     if (thumbnailPreviewUrl) URL.revokeObjectURL(thumbnailPreviewUrl);
     setThumbnailFile(file);
     setThumbnailPreviewUrl(URL.createObjectURL(file));
+    setCapturedThumbnailTimestamp(options?.capturedAt ?? null);
+    setCaptureError("");
+  }
+
+  async function captureCurrentFrameAsThumbnail() {
+    const video = videoRef.current;
+
+    if (!video || !canCaptureVideoFrame) {
+      return;
+    }
+
+    const width = video.videoWidth;
+    const height = video.videoHeight;
+    const currentTime = video.currentTime || 0;
+
+    if (!width || !height) {
+      const message = "Video frame is not ready yet. Try again after it loads.";
+      setCaptureError(message);
+      toast.error(message);
+      return;
+    }
+
+    try {
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+
+      const context = canvas.getContext("2d");
+      if (!context) {
+        throw new Error("Canvas is unavailable in this browser.");
+      }
+
+      context.drawImage(video, 0, 0, width, height);
+
+      const blob = await new Promise<Blob | null>((resolve) => {
+        canvas.toBlob(resolve, "image/jpeg", 0.9);
+      });
+
+      if (!blob) {
+        throw new Error("The selected frame could not be converted to JPEG.");
+      }
+
+      const file = new File(
+        [blob],
+        `reel-frame-${Math.round(currentTime * 1000)}.jpg`,
+        {
+          type: "image/jpeg",
+          lastModified: Date.now(),
+        },
+      );
+
+      selectThumbnail(file, { capturedAt: currentTime });
+      setVideoTimestamp(currentTime);
+      toast.success(`Thumbnail captured at ${formatTimestamp(currentTime)}`);
+    } catch {
+      const message =
+        "Could not capture this video frame. Upload a thumbnail image manually.";
+      setCaptureError(message);
+      toast.error(message);
+    }
   }
 
   function addProductTag() {
@@ -279,11 +376,30 @@ export default function ReelForm({
                     >
                       {effectiveVideoUrl ? (
                         <video
+                          key={effectiveVideoUrl}
+                          ref={videoRef}
+                          crossOrigin={videoPreviewUrl ? undefined : "anonymous"}
                           src={effectiveVideoUrl}
                           className="h-80 w-full bg-black object-contain"
                           controls
                           muted
                           playsInline
+                          onCanPlay={() => {
+                            setVideoCanPlay(true);
+                            setVideoTimestamp(videoRef.current?.currentTime ?? 0);
+                          }}
+                          onLoadedMetadata={(event) => {
+                            setVideoTimestamp(event.currentTarget.currentTime);
+                          }}
+                          onTimeUpdate={(event) => {
+                            setVideoTimestamp(event.currentTarget.currentTime);
+                          }}
+                          onSeeked={(event) => {
+                            setVideoTimestamp(event.currentTarget.currentTime);
+                          }}
+                          onError={() => {
+                            setVideoCanPlay(false);
+                          }}
                         />
                       ) : (
                         <span className="flex flex-col items-center gap-2 px-4 py-8 text-sm text-muted-foreground">
@@ -302,6 +418,26 @@ export default function ReelForm({
                         }}
                       />
                     </label>
+                    {effectiveVideoUrl ? (
+                      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border bg-muted/35 px-3 py-2">
+                        <span className="text-xs font-medium text-muted-foreground">
+                          Current frame {formatTimestamp(videoTimestamp)}
+                        </span>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={captureCurrentFrameAsThumbnail}
+                          disabled={isBusy || !canCaptureVideoFrame}
+                        >
+                          <Camera className="size-4" />
+                          Use current frame as thumbnail
+                        </Button>
+                      </div>
+                    ) : null}
+                    {captureError ? (
+                      <p className="text-xs text-destructive">{captureError}</p>
+                    ) : null}
                   </div>
 
                   <div className="grid gap-2">
@@ -335,6 +471,12 @@ export default function ReelForm({
                         }}
                       />
                     </label>
+                    {capturedThumbnailTimestamp !== null ? (
+                      <div className="rounded-xl border border-border bg-muted/35 px-3 py-2 text-xs font-medium text-muted-foreground">
+                        Captured frame{" "}
+                        {formatTimestamp(capturedThumbnailTimestamp)}
+                      </div>
+                    ) : null}
                   </div>
                 </div>
               </CardContent>

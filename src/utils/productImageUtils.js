@@ -1,8 +1,8 @@
 import fs from "fs/promises";
 import path from "path";
+import { UPLOADS_ROOT } from "../config/uploads.js";
 
 const UPLOADS_PREFIX = "/uploads/";
-const UPLOADS_ROOT_DIR = path.resolve(process.cwd(), "uploads");
 
 function safeParseUrl(value) {
   try {
@@ -144,15 +144,20 @@ export function getUploadedImagePaths(files = []) {
 }
 
 export async function deleteManagedImageFiles(values = []) {
+  const uploadsRoot = path.resolve(UPLOADS_ROOT);
   const uniqueManagedPaths = Array.from(
     new Set(values.map((value) => normalizeManagedPath(value)).filter(Boolean)),
   );
 
   await Promise.all(
     uniqueManagedPaths.map(async (relativePath) => {
-      const absolutePath = path.resolve(process.cwd(), `.${relativePath}`);
+      const uploadRelativePath = relativePath.slice(UPLOADS_PREFIX.length);
+      const absolutePath = path.resolve(uploadsRoot, uploadRelativePath);
+      const isInsideUploadsRoot =
+        absolutePath === uploadsRoot ||
+        absolutePath.startsWith(`${uploadsRoot}${path.sep}`);
 
-      if (!absolutePath.startsWith(UPLOADS_ROOT_DIR)) {
+      if (!isInsideUploadsRoot) {
         return;
       }
 

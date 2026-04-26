@@ -1,8 +1,7 @@
 import fs from "fs";
 import path from "path";
 import multer from "multer";
-
-const PRODUCT_UPLOAD_DIR = path.join(process.cwd(), "uploads", "products");
+import { PRODUCT_UPLOAD_DIR } from "../config/uploads.js";
 
 fs.mkdirSync(PRODUCT_UPLOAD_DIR, { recursive: true });
 
