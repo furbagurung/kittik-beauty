@@ -14,7 +14,7 @@ const corsOrigins = (process.env.CORS_ORIGINS || "")
   .split(",")
   .map((origin) => origin.trim())
   .filter(Boolean);
-
+app.set("trust proxy", true);
 app.use(
   cors({
     origin: corsOrigins.length ? corsOrigins : defaultCorsOrigins,
@@ -45,5 +45,5 @@ app.get("/", (_req, res) => {
 app.use((req, res) => {
   res.status(404).json({ message: "Route not found" });
 });
-app.set("trust proxy", true);
+
 export default app;
