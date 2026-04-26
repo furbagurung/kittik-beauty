@@ -9,6 +9,11 @@ import {
   toStoredImagePath,
 } from "../utils/productImageUtils.js";
 import { timeQuery } from "../utils/queryTiming.js";
+import {
+  buildGeneratedReelThumbnailPaths,
+  generateReelThumbnail,
+  reelPublicPathToAbsolutePath,
+} from "../utils/reelThumbnailUtils.js";
 
 const REEL_INCLUDE = (userId) => {
   const include = {
@@ -142,6 +147,27 @@ function getUploadedReelPaths(files = []) {
     .map((file) => file?.filename)
     .filter(Boolean)
     .map((filename) => `/uploads/reels/${filename}`);
+}
+
+async function tryGenerateReelThumbnail(videoUrl) {
+  const videoPath = reelPublicPathToAbsolutePath(videoUrl);
+  const thumbnailPaths = buildGeneratedReelThumbnailPaths(videoUrl);
+
+  if (!videoPath || !thumbnailPaths) {
+    return null;
+  }
+
+  try {
+    await generateReelThumbnail(videoPath, thumbnailPaths.absolutePath);
+    return thumbnailPaths.publicPath;
+  } catch (error) {
+    console.error("Failed to generate reel thumbnail:", {
+      videoUrl,
+      outputPath: thumbnailPaths.absolutePath,
+      error: error?.message || error,
+    });
+    return null;
+  }
 }
 
 function parseJsonArray(value) {
@@ -848,13 +874,22 @@ export async function createReel(req, res) {
     const title = String(req.body.title ?? "").trim();
     const caption = String(req.body.caption ?? "").trim();
     const videoUrl = uploadedVideoPaths[0] ?? toStoredImagePath(req.body.videoUrl, req);
-    const thumbnailUrl =
+    let thumbnailUrl =
       uploadedThumbnailPaths[0] ?? toStoredImagePath(req.body.thumbnailUrl, req);
     const productTags = normalizeProductTags(req.body.productTags);
 
     if (!title || !videoUrl) {
       await deleteManagedImageFiles(uploadedPaths);
       return res.status(400).json({ message: "Title and video are required" });
+    }
+
+    if (!thumbnailUrl && uploadedVideoPaths[0]) {
+      const generatedThumbnailUrl = await tryGenerateReelThumbnail(videoUrl);
+
+      if (generatedThumbnailUrl) {
+        thumbnailUrl = generatedThumbnailUrl;
+        uploadedPaths.push(generatedThumbnailUrl);
+      }
     }
 
     const createdReel = await prisma.reel.create({
@@ -921,10 +956,14 @@ export async function updateReel(req, res) {
       uploadedVideoPaths[0] ??
       toStoredImagePath(req.body.videoUrl, req) ??
       existingReel.videoUrl;
-    const nextThumbnailUrl =
-      uploadedThumbnailPaths[0] ??
-      toStoredImagePath(req.body.thumbnailUrl, req) ??
-      existingReel.thumbnailUrl;
+    const requestedThumbnailUrl = toStoredImagePath(req.body.thumbnailUrl, req);
+    const hasNewThumbnailInput = Boolean(
+      uploadedThumbnailPaths[0] ||
+        (requestedThumbnailUrl &&
+          requestedThumbnailUrl !== existingReel.thumbnailUrl),
+    );
+    let nextThumbnailUrl =
+      uploadedThumbnailPaths[0] ?? requestedThumbnailUrl ?? existingReel.thumbnailUrl;
     const shouldReplaceTags = Object.prototype.hasOwnProperty.call(
       req.body,
       "productTags",
@@ -934,6 +973,17 @@ export async function updateReel(req, res) {
     if (!title || !nextVideoUrl) {
       await deleteManagedImageFiles(uploadedPaths);
       return res.status(400).json({ message: "Title and video are required" });
+    }
+
+    if (uploadedVideoPaths[0] && !hasNewThumbnailInput) {
+      const generatedThumbnailUrl = await tryGenerateReelThumbnail(nextVideoUrl);
+
+      if (generatedThumbnailUrl) {
+        nextThumbnailUrl = generatedThumbnailUrl;
+        uploadedPaths.push(generatedThumbnailUrl);
+      } else {
+        nextThumbnailUrl = existingReel.thumbnailUrl;
+      }
     }
 
     const updatedReel = await prisma.$transaction(async (tx) => {
@@ -985,7 +1035,7 @@ export async function updateReel(req, res) {
       filesToDelete.push(existingReel.videoUrl);
     }
     if (
-      uploadedThumbnailPaths[0] &&
+      (uploadedThumbnailPaths[0] || nextThumbnailUrl !== existingReel.thumbnailUrl) &&
       existingReel.thumbnailUrl &&
       existingReel.thumbnailUrl !== nextThumbnailUrl
     ) {
