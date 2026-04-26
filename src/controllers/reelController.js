@@ -15,6 +15,8 @@ import {
   reelPublicPathToAbsolutePath,
 } from "../utils/reelThumbnailUtils.js";
 
+const UPLOADS_ROOT =
+  process.env.UPLOADS_ROOT || path.resolve(process.cwd(), "uploads");
 const REEL_INCLUDE = (userId) => {
   const include = {
     user: {
@@ -158,7 +160,11 @@ async function tryGenerateReelThumbnail(videoUrl) {
   }
 
   try {
-    await generateReelThumbnail(videoPath, thumbnailPaths.absolutePath);
+   await generateReelThumbnail(
+  videoPath,
+  thumbnailPaths.absolutePath,
+  "00:00:01"
+);
     return thumbnailPaths.publicPath;
   } catch (error) {
     console.error("Failed to generate reel thumbnail:", {

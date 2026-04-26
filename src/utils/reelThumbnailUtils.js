@@ -1,5 +1,4 @@
 import { execFile } from "child_process";
-import fs from "fs/promises";
 import path from "path";
 import { promisify } from "util";
 import { REEL_UPLOAD_DIR } from "../config/uploads.js";
@@ -59,23 +58,13 @@ export function buildGeneratedReelThumbnailPaths(videoPublicPath) {
   };
 }
 
-export async function generateReelThumbnail(videoPath, outputPath) {
-  await fs.mkdir(path.dirname(outputPath), { recursive: true });
+export async function generateReelThumbnail(videoPath, outputPath, time = "00:00:01") {
+  return new Promise((resolve, reject) => {
+    const command = `ffmpeg -i "${videoPath}" -ss ${time} -vframes 1 "${outputPath}"`;
 
-  try {
-    await execFileAsync(
-      "ffmpeg",
-      ["-y", "-ss", "1", "-i", videoPath, "-frames:v", "1", "-q:v", "2", outputPath],
-      {
-        shell: false,
-        timeout: 30000,
-        windowsHide: true,
-      },
-    );
-  } catch (error) {
-    const stderr = String(error?.stderr ?? "").trim();
-    const message = stderr || error?.message || "ffmpeg thumbnail generation failed";
-
-    throw new Error(message);
-  }
+    exec(command, (error) => {
+      if (error) return reject(error);
+      resolve();
+    });
+  });
 }
