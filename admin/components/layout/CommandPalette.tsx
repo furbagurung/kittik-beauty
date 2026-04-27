@@ -5,6 +5,7 @@ import { clearAdminSession } from "@/lib/admin-session";
 import { cn } from "@/lib/utils";
 import {
   Box,
+  Images,
   LayoutGrid,
   LogOut,
   Plus,
@@ -57,6 +58,13 @@ const commands: Command[] = [
     icon: Box,
     shortcut: ["G", "P"],
     action: (router) => router.push("/products"),
+  },
+  {
+    id: "go-banners",
+    label: "Go to Banners",
+    group: "Navigate",
+    icon: Images,
+    action: (router) => router.push("/banners"),
   },
   {
     id: "go-customers",

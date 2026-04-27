@@ -9,6 +9,8 @@ import type {
   ProductVariant,
 } from "@/types/product";
 
+const API_BASE = "http://192.168.1.66:5000"; // your local IP
+
 export async function apiFetch<T>(
   endpoint: string,
   options?: RequestInit,
@@ -98,6 +100,19 @@ export type AdminApiProductCategory = {
   updatedAt: string;
 };
 
+export type AdminApiBanner = {
+  id: number;
+  image: string;
+  title?: string | null;
+  subtitle?: string | null;
+  cta?: string | null;
+  link?: string | null;
+  isActive: boolean;
+  order: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type ReelStatus = "DRAFT" | "ACTIVE" | "ARCHIVED";
 
 export type AdminApiReelProductTag = {
@@ -162,6 +177,14 @@ type ProductMutationInput = {
   seoTitle?: string;
   seoDescription?: string;
   variantImageFiles?: Array<{ key: string; file: File }>;
+};
+
+export type BannerMutationInput = {
+  title?: string;
+  subtitle?: string;
+  cta?: string;
+  link?: string;
+  order?: number;
 };
 
 export type ReelMutationInput = {
@@ -337,6 +360,44 @@ export async function deleteProductCategory(id: number) {
     },
     getStoredAdminToken() || undefined,
   );
+}
+
+export async function getBanners() {
+  const res = await fetch(`${API_BASE}/api/banners`);
+  const response = await res.json();
+
+  const banners: AdminApiBanner[] = response.data ?? response;
+
+  return banners.map((banner) => ({
+    ...banner,
+    image: banner.image.startsWith("/uploads/")
+      ? `${API_BASE}${banner.image}`
+      : banner.image,
+  }));
+}
+
+export async function createBanner(data: BannerMutationInput, file: File) {
+  const formData = new FormData();
+
+  formData.append("image", file);
+  formData.append("title", data.title || "");
+  formData.append("subtitle", data.subtitle || "");
+  formData.append("cta", data.cta || "");
+  formData.append("link", data.link || "");
+  formData.append("order", String(data.order || 0));
+
+  const res = await fetch(`${API_BASE}/api/banners`, {
+    method: "POST",
+    body: formData,
+  });
+
+  return res.json();
+}
+
+export async function deleteBanner(id: number) {
+  await fetch(`${API_BASE}/api/banners/${id}`, {
+    method: "DELETE",
+  });
 }
 
 export async function getReels() {

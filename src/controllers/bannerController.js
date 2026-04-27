@@ -18,7 +18,9 @@ export const getBanners = async (_req, res) => {
 
 export const createBanner = async (req, res) => {
   try {
-    const { image, title, subtitle, cta, link, order } = req.body;
+    const { title, subtitle, cta, link, order } = req.body;
+
+    const image = req.file ? `/uploads/banners/${req.file.filename}` : null;
 
     if (!image) {
       return res.status(400).json({ message: "Banner image is required" });
@@ -35,12 +37,9 @@ export const createBanner = async (req, res) => {
       },
     });
 
-    return res.status(201).json(banner);
-  } catch (error) {
-    return res.status(500).json({
-      message: "Failed to create banner",
-      error: error.message,
-    });
+    return res.json(banner);
+  } catch (err) {
+    return res.status(500).json({ message: err.message });
   }
 };
 

@@ -9,19 +9,14 @@ import paymentRoutes from "./routes/paymentRoutes.js";
 import productRoutes from "./routes/productRoutes.js";
 import reelRoutes from "./routes/reelRoutes.js";
 const app = express();
-const defaultCorsOrigins = ["http://192.168.1.66:3000", "http://localhost:3000"];
-const corsOrigins = (process.env.CORS_ORIGINS || "")
-  .split(",")
-  .map((origin) => origin.trim())
-  .filter(Boolean);
 app.set("trust proxy", true);
+
 app.use(
   cors({
-    origin: corsOrigins.length ? corsOrigins : defaultCorsOrigins,
+    origin: true,
     credentials: true,
   }),
 );
-
 app.use(express.json());
 app.use("/api/banners", bannerRoutes);
 app.use("/uploads", express.static(UPLOADS_ROOT));
