@@ -893,7 +893,28 @@ export default function ProductForm({
       return next;
     });
   }
+  function removeVariantImage(index: number) {
+    const variant = variants[index];
+    if (!variant) return;
 
+    const key = getVariantImageFileKey(variant, index);
+
+    setVariantImageFiles((current) => {
+      const nextEntries = { ...current };
+
+      if (nextEntries[key]) {
+        URL.revokeObjectURL(nextEntries[key].previewUrl);
+        delete nextEntries[key];
+      }
+
+      return nextEntries;
+    });
+
+    updateVariant(index, {
+      image: null,
+      imageFileKey: null,
+    });
+  }
   function handleVariantImageUpload(index: number, file: File) {
     const variant = variants[index];
     if (!variant) return;
@@ -1519,37 +1540,53 @@ export default function ProductForm({
                                   </div>
 
                                   <div className="flex min-w-0 items-center gap-3">
-                                    <label className="group flex size-12 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-xl border border-dashed border-border bg-muted/40 transition hover:border-primary/45 hover:bg-muted/60">
-                                      {variantImagePreview ? (
-                                        // eslint-disable-next-line @next/next/no-img-element
-                                        <img
-                                          src={variantImagePreview}
-                                          alt={variant.title || "Variant"}
-                                          className="h-full w-full object-cover"
-                                        />
-                                      ) : (
-                                        <span className="text-[0.7rem] font-medium text-muted-foreground group-hover:text-foreground">
-                                          Upload
-                                        </span>
-                                      )}
+                                    <div className="relative size-12 shrink-0">
+                                      <label className="group flex h-full w-full cursor-pointer items-center justify-center overflow-hidden rounded-xl border border-dashed border-border bg-muted/40 transition hover:border-primary/45 hover:bg-muted/60">
+                                        {variantImagePreview ? (
+                                          <img
+                                            src={variantImagePreview}
+                                            alt={variant.title || "Variant"}
+                                            className="h-full w-full object-cover"
+                                          />
+                                        ) : (
+                                          <span className="text-[0.7rem] font-medium text-muted-foreground group-hover:text-foreground">
+                                            Upload
+                                          </span>
+                                        )}
 
-                                      <input
-                                        type="file"
-                                        accept="image/*"
-                                        className="hidden"
-                                        disabled={isBusy}
-                                        onChange={(event) => {
-                                          const file = event.target.files?.[0];
-                                          if (file) {
-                                            handleVariantImageUpload(
-                                              index,
-                                              file,
-                                            );
+                                        <input
+                                          type="file"
+                                          accept="image/*"
+                                          className="hidden"
+                                          disabled={isBusy}
+                                          onChange={(event) => {
+                                            const file =
+                                              event.target.files?.[0];
+                                            if (file) {
+                                              handleVariantImageUpload(
+                                                index,
+                                                file,
+                                              );
+                                            }
+                                            event.target.value = "";
+                                          }}
+                                        />
+                                      </label>
+
+                                      {variantImagePreview ? (
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            removeVariantImage(index)
                                           }
-                                          event.target.value = "";
-                                        }}
-                                      />
-                                    </label>
+                                          disabled={isBusy}
+                                          aria-label="Remove variant image"
+                                          className="absolute -right-2 -top-2 inline-flex size-5 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-sm transition hover:bg-destructive hover:text-destructive-foreground disabled:cursor-not-allowed disabled:opacity-60"
+                                        >
+                                          <X className="size-3" />
+                                        </button>
+                                      ) : null}
+                                    </div>
 
                                     <div className="min-w-0 flex-1">
                                       <Input
