@@ -1,5 +1,5 @@
-import { clearAdminSession, getStoredAdminToken } from "@/lib/admin-session";
 import type { AdminUser } from "@/lib/admin-session";
+import { clearAdminSession, getStoredAdminToken } from "@/lib/admin-session";
 import { API_BASE_URL } from "@/lib/api-config";
 import type { AdminProductCategoryValue } from "@/lib/product-category";
 import type {
@@ -9,8 +9,7 @@ import type {
   ProductVariant,
 } from "@/types/product";
 
-const API_BASE = "http://192.168.1.66:5000"; // your local IP
-
+const API_BASE = "https://kittik.furkedesigns.com";
 export async function apiFetch<T>(
   endpoint: string,
   options?: RequestInit,
@@ -294,10 +293,7 @@ export async function createProduct(data: ProductMutationInput) {
     getStoredAdminToken() || undefined,
   );
 }
-export async function updateProduct(
-  id: number,
-  data: ProductMutationInput,
-) {
+export async function updateProduct(id: number, data: ProductMutationInput) {
   return apiFetch<AdminApiProduct>(
     `/products/${id}`,
     {
@@ -531,7 +527,11 @@ export async function getCurrentAdmin(
     hasToken: Boolean(token),
   });
 
-  const response = await apiFetch<AdminUser>("/auth/admin/me", undefined, token);
+  const response = await apiFetch<AdminUser>(
+    "/auth/admin/me",
+    undefined,
+    token,
+  );
 
   console.debug("[admin-auth] admin validation response", {
     userEmail: response.email,
