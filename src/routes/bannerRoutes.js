@@ -1,8 +1,8 @@
 import express from "express";
 import {
-    createBanner,
-    deleteBanner,
-    getBanners,
+  createBanner,
+  deleteBanner,
+  getBanners,
 } from "../controllers/bannerController.js";
 
 const router = express.Router();

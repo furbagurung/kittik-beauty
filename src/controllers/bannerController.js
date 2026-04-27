@@ -1,38 +1,64 @@
-import prisma from "../prisma/client.js";
+import { prisma } from "../config/prisma.js";
 
-// GET active banners (for app)
-export const getBanners = async (req, res) => {
-  const banners = await prisma.banner.findMany({
-    where: { isActive: true },
-    orderBy: { order: "asc" },
-  });
+export const getBanners = async (_req, res) => {
+  try {
+    const banners = await prisma.banner.findMany({
+      where: { isActive: true },
+      orderBy: [{ order: "asc" }, { createdAt: "desc" }],
+    });
 
-  res.json({ data: banners });
+    return res.json({ data: banners });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Failed to load banners",
+      error: error.message,
+    });
+  }
 };
 
-// ADMIN: create banner
 export const createBanner = async (req, res) => {
-  const { image, title, subtitle, cta, link, order } = req.body;
+  try {
+    const { image, title, subtitle, cta, link, order } = req.body;
 
-  const banner = await prisma.banner.create({
-    data: {
-      image,
-      title,
-      subtitle,
-      cta,
-      link,
-      order: order || 0,
-    },
-  });
+    if (!image) {
+      return res.status(400).json({ message: "Banner image is required" });
+    }
 
-  res.json(banner);
+    const banner = await prisma.banner.create({
+      data: {
+        image,
+        title,
+        subtitle,
+        cta,
+        link,
+        order: Number(order || 0),
+      },
+    });
+
+    return res.status(201).json(banner);
+  } catch (error) {
+    return res.status(500).json({
+      message: "Failed to create banner",
+      error: error.message,
+    });
+  }
 };
 
-// ADMIN: delete banner
 export const deleteBanner = async (req, res) => {
-  const id = Number(req.params.id);
+  try {
+    const id = Number(req.params.id);
 
-  await prisma.banner.delete({ where: { id } });
+    if (!Number.isInteger(id) || id <= 0) {
+      return res.status(400).json({ message: "Invalid banner id" });
+    }
 
-  res.json({ success: true });
+    await prisma.banner.delete({ where: { id } });
+
+    return res.json({ success: true });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Failed to delete banner",
+      error: error.message,
+    });
+  }
 };
