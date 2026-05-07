@@ -9,7 +9,7 @@ import type {
   ProductVariant,
 } from "@/types/product";
 
-const API_BASE = "https://kittik.furkedesigns.com";
+const API_ORIGIN = API_BASE_URL.replace(/\/api$/, "");
 export async function apiFetch<T>(
   endpoint: string,
   options?: RequestInit,
@@ -75,8 +75,8 @@ export type AdminApiProduct = {
   media?: ProductMedia[];
   category: AdminProductCategoryValue;
   categoryId?: number | null;
-  stock: number;
-  status: ProductStatus;
+  stock?: number;
+  status?: ProductStatus;
   description?: string;
   productType?: string | null;
   vendor?: string | null;
@@ -85,8 +85,30 @@ export type AdminApiProduct = {
   tags?: string[];
   options?: ProductOption[];
   variants?: ProductVariant[];
+  defaultVariant?: ProductVariant | null;
   defaultVariantId?: number | null;
-  createdAt: string;
+  createdAt?: string;
+};
+
+export type ProductListPaginationMeta = {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+};
+
+export type ProductListResponse = {
+  data: AdminApiProduct[];
+  pagination: ProductListPaginationMeta;
+};
+
+export type GetProductsParams = {
+  page?: number;
+  limit?: number;
+  search?: string;
+  category?: string;
+  status?: string;
+  stock?: string;
 };
 
 export type AdminApiProductCategory = {
@@ -277,8 +299,28 @@ function buildReelMutationFormData(data: ReelMutationInput) {
   return formData;
 }
 
-export async function getProducts() {
-  return apiFetch<AdminApiProduct[]>("/products");
+export async function getProducts(): Promise<AdminApiProduct[]>;
+export async function getProducts(
+  params: GetProductsParams,
+): Promise<ProductListResponse>;
+export async function getProducts(
+  params?: GetProductsParams,
+): Promise<AdminApiProduct[] | ProductListResponse> {
+  if (!params) {
+    return apiFetch<AdminApiProduct[]>("/products");
+  }
+
+  const search = new URLSearchParams();
+
+  if (params.page != null) search.set("page", String(params.page));
+  if (params.limit != null) search.set("limit", String(params.limit));
+  if (params.search) search.set("search", params.search);
+  if (params.category) search.set("category", params.category);
+  if (params.status) search.set("status", params.status);
+  if (params.stock) search.set("stock", params.stock);
+
+  const qs = search.toString();
+  return apiFetch<ProductListResponse>(`/products${qs ? `?${qs}` : ""}`);
 }
 export async function getProductById(id: number) {
   return apiFetch<AdminApiProduct>(`/products/${id}`);
@@ -359,7 +401,7 @@ export async function deleteProductCategory(id: number) {
 }
 
 export async function getBanners() {
-  const res = await fetch(`${API_BASE}/api/banners`);
+  const res = await fetch(`${API_BASE_URL}/banners`);
   const response = await res.json();
 
   const banners: AdminApiBanner[] = response.data ?? response;
@@ -367,7 +409,7 @@ export async function getBanners() {
   return banners.map((banner) => ({
     ...banner,
     image: banner.image.startsWith("/uploads/")
-      ? `${API_BASE}${banner.image}`
+      ? `${API_ORIGIN}${banner.image}`
       : banner.image,
   }));
 }
@@ -382,7 +424,7 @@ export async function createBanner(data: BannerMutationInput, file: File) {
   formData.append("link", data.link || "");
   formData.append("order", String(data.order || 0));
 
-  const res = await fetch(`${API_BASE}/api/banners`, {
+  const res = await fetch(`${API_BASE_URL}/banners`, {
     method: "POST",
     body: formData,
   });
@@ -391,7 +433,7 @@ export async function createBanner(data: BannerMutationInput, file: File) {
 }
 
 export async function deleteBanner(id: number) {
-  await fetch(`${API_BASE}/api/banners/${id}`, {
+  await fetch(`${API_BASE_URL}/banners/${id}`, {
     method: "DELETE",
   });
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   flexRender,
   getCoreRowModel,
@@ -107,8 +108,8 @@ export default function DataTable<TData>({
                 <tr key={index} className="border-b border-hairline/70 last:border-b-0">
                   {table.getAllLeafColumns().map((column) => (
                     <td key={column.id} className="px-4 py-3.5">
-                      <div
-                        className="h-3.5 w-2/3 animate-pulse rounded-full bg-muted"
+                      <Skeleton
+                        className="h-3.5 w-2/3 rounded-full"
                         style={{ animationDelay: `${index * 60}ms` }}
                       />
                     </td>

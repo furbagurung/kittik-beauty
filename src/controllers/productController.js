@@ -82,6 +82,16 @@ function parseQueryBoolean(value) {
   return normalized === "true" || normalized === "1";
 }
 
+function getProductCompatibilityStatus(product, defaultVariant) {
+  if (defaultVariant?.stock === 0 || defaultVariant?.status === "OUT_OF_STOCK") {
+    return "Out of Stock";
+  }
+
+  if (product.status === "ACTIVE") return "Active";
+  if (product.status === "ARCHIVED") return "Archived";
+  return "Draft";
+}
+
 function buildProductListResponse(product, req) {
   const defaultVariant = product.variants?.[0] ?? null;
   const image =
@@ -96,6 +106,8 @@ function buildProductListResponse(product, req) {
     price: defaultVariant?.price ?? 0,
     image: buildPublicImageUrl(image, req) || null,
     category: product.category ?? product.categoryLegacy,
+    stock: defaultVariant?.stock ?? null,
+    status: getProductCompatibilityStatus(product, defaultVariant),
     defaultVariant,
   };
 }
@@ -109,6 +121,59 @@ function normalizeProductStatus(status) {
   if (normalized === "ACTIVE") return "ACTIVE";
   if (normalized === "ARCHIVED") return "ARCHIVED";
   return "DRAFT";
+}
+
+function normalizeProductStatusFilter(status) {
+  const normalized = String(Array.isArray(status) ? status[0] : status ?? "")
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, "_");
+
+  if (normalized === "ACTIVE") return "ACTIVE";
+  if (normalized === "DRAFT") return "DRAFT";
+  if (normalized === "ARCHIVED") return "ARCHIVED";
+  if (normalized === "OUT_OF_STOCK") return "OUT_OF_STOCK";
+
+  return "";
+}
+
+function normalizeStockFilter(stock) {
+  const normalized = String(Array.isArray(stock) ? stock[0] : stock ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "_");
+
+  if (normalized === "in_stock") return "in_stock";
+  if (normalized === "low_stock" || normalized === "low") return "low_stock";
+  if (normalized === "out_of_stock") return "out_of_stock";
+
+  return "";
+}
+
+function buildDefaultVariantStockWhere(stockFilter) {
+  if (stockFilter === "in_stock") {
+    return { variants: { some: { isDefault: true, stock: { gt: 0 } } } };
+  }
+
+  if (stockFilter === "low_stock") {
+    return {
+      variants: {
+        some: {
+          isDefault: true,
+          stock: {
+            gt: 0,
+            lte: 10,
+          },
+        },
+      },
+    };
+  }
+
+  if (stockFilter === "out_of_stock") {
+    return { variants: { some: { isDefault: true, stock: { lte: 0 } } } };
+  }
+
+  return null;
 }
 
 function normalizeVariantStatus(status, stock) {
@@ -421,35 +486,57 @@ export async function getProducts(req, res) {
     const { category, search, sort } = req.query;
     const categoryFilter = String(category ?? "").trim();
     const searchFilter = String(search ?? "").trim();
+    const statusFilter = normalizeProductStatusFilter(req.query.status);
+    const stockFilter = normalizeStockFilter(req.query.stock);
     const detail = parseQueryBoolean(req.query.detail);
     const pagination = getPaginationParams(req.query);
     const { page, limit, isPaginated } = pagination;
-    const where = {
-      ...(categoryFilter
-        ? {
-            OR: [
-              { categoryLegacy: categoryFilter },
-              { category: { is: { name: categoryFilter } } },
-            ],
-          }
-        : {}),
-      ...(searchFilter
-        ? {
-            OR: [
-              { title: { contains: searchFilter } },
-              { categoryLegacy: { contains: searchFilter } },
-              { category: { is: { name: { contains: searchFilter } } } },
-              { vendor: { contains: searchFilter } },
-              { productType: { contains: searchFilter } },
-            ],
-          }
-        : {}),
-    };
+    const filters = [];
+
+    if (categoryFilter) {
+      filters.push({
+        OR: [
+          { categoryLegacy: categoryFilter },
+          { category: { is: { name: categoryFilter } } },
+          { category: { is: { slug: categoryFilter } } },
+        ],
+      });
+    }
+
+    if (searchFilter) {
+      filters.push({
+        OR: [
+          { title: { contains: searchFilter } },
+          { categoryLegacy: { contains: searchFilter } },
+          { category: { is: { name: { contains: searchFilter } } } },
+          { vendor: { contains: searchFilter } },
+          { productType: { contains: searchFilter } },
+          { description: { contains: searchFilter } },
+          { variants: { some: { sku: { contains: searchFilter } } } },
+        ],
+      });
+    }
+
+    if (statusFilter === "OUT_OF_STOCK") {
+      const stockWhere = buildDefaultVariantStockWhere("out_of_stock");
+      if (stockWhere) filters.push(stockWhere);
+    } else if (statusFilter) {
+      filters.push({ status: statusFilter });
+    }
+
+    const stockWhere = buildDefaultVariantStockWhere(stockFilter);
+    if (stockWhere) filters.push(stockWhere);
+
+    const where = filters.length > 0 ? { AND: filters } : {};
     const queryContext = {
       route: "GET /api/products",
       page: isPaginated ? page : undefined,
       limit: isPaginated ? limit : undefined,
       detail: detail || undefined,
+      hasSearch: Boolean(searchFilter) || undefined,
+      category: categoryFilter || undefined,
+      status: statusFilter || undefined,
+      stock: stockFilter || undefined,
     };
     const include =
       isPaginated && !detail

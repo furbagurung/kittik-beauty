@@ -27,6 +27,7 @@ export type ProductVariant = {
   id?: number;
   productId?: number;
   title: string;
+  sku?: string | null;
   price: number;
   stock: number;
   image?: string | null;

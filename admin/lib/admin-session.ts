@@ -51,7 +51,18 @@ function debugAdminSession(
   message: string,
   details?: Record<string, unknown>,
 ) {
+  if (process.env.NODE_ENV !== "development") return;
+
   console.debug(`[admin-auth] ${message}`, details ?? {});
+}
+
+function warnAdminSession(
+  message: string,
+  details?: Record<string, unknown>,
+) {
+  if (process.env.NODE_ENV !== "development") return;
+
+  console.warn(`[admin-auth] ${message}`, details ?? {});
 }
 
 function isAdminUser(value: unknown): value is AdminUser {
@@ -163,22 +174,27 @@ async function validateAdminToken(token: string) {
     });
 
     if (!response.ok) {
-      console.error("[admin-auth] restore validate failed", {
+      const body = await response.text().catch(() => null);
+
+      warnAdminSession("restore validate failed", {
         requestUrl,
         status: response.status,
+        body,
       });
 
-      throw new Error(
-        response.status === 401 || response.status === 403
-          ? "Invalid admin session."
-          : `Session validation failed: ${response.status}`,
-      );
+      return null;
     }
 
     const data = (await response.json()) as unknown;
 
     if (!isAdminUser(data)) {
-      throw new Error("Invalid admin session response.");
+      warnAdminSession("restore validate invalid response", {
+        requestUrl,
+        status: response.status,
+        body: data,
+      });
+
+      return null;
     }
 
     debugAdminSession("restore validate success", {
@@ -187,19 +203,16 @@ async function validateAdminToken(token: string) {
 
     return data;
   } catch (error) {
-    if (error instanceof DOMException && error.name === "AbortError") {
-      throw new Error("Admin session validation timed out.");
-    }
-
-    console.error("[admin-auth] restore validate error", {
+    warnAdminSession("restore validate error", {
       requestUrl,
+      status: null,
       message:
         error instanceof Error
           ? error.message
           : "Unknown admin session validation error.",
     });
 
-    throw error;
+    return null;
   } finally {
     window.clearTimeout(timeoutId);
   }
@@ -370,6 +383,20 @@ export async function bootstrapAdminSession({
       ) {
         debugAdminSession("restore stale result ignored", { runId });
         return snapshot;
+      }
+
+      if (!user) {
+        debugAdminSession("restore invalid token cleared", { runId });
+        clearPersistedSession();
+        sessionVersion += 1;
+        bootstrapToken = null;
+        return setSnapshot({
+          token: null,
+          user: null,
+          status: "unauthenticated",
+          hasHydrated: true,
+          error: null,
+        });
       }
 
       persistAdminSession({ token, user });

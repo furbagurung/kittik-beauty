@@ -1,9 +1,7 @@
-import ProductsTable from "@/components/products/ProductsTable";
+import ProductsListSection from "@/components/products/ProductsListSection";
 import ProductSuccessToast from "@/components/products/ProductSuccessToast";
-import Notice from "@/components/shared/Notice";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
-import { getProducts, type AdminApiProduct } from "@/lib/api";
 import { Plus } from "lucide-react";
 import Link from "next/link";
 
@@ -13,16 +11,6 @@ export default async function ProductsPage({
   searchParams: Promise<{ success?: string }>;
 }) {
   const { success } = await searchParams;
-  let products: AdminApiProduct[] = [];
-  let errorMessage = "";
-
-  try {
-    products = await getProducts();
-  } catch (error) {
-    products = [];
-    errorMessage =
-      error instanceof Error ? error.message : "Failed to load products.";
-  }
 
   return (
     <div className="space-y-5">
@@ -41,9 +29,8 @@ export default async function ProductsPage({
       />
 
       <ProductSuccessToast success={success} />
-      {errorMessage ? <Notice tone="danger" message={errorMessage} /> : null}
 
-      <ProductsTable products={products} />
+      <ProductsListSection />
     </div>
   );
 }

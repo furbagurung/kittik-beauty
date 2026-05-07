@@ -15,9 +15,25 @@ import { useMemo } from "react";
 
 export default function ProductsTable({
   products,
+  loading,
+  emptyLabel = "No products in the catalog yet.",
 }: {
   products: AdminApiProduct[];
+  loading?: boolean;
+  emptyLabel?: string;
 }) {
+  function getProductStock(product: AdminApiProduct) {
+    return product.stock ?? product.defaultVariant?.stock ?? null;
+  }
+
+  function getProductStatus(product: AdminApiProduct) {
+    if (!product.status) return "N/A";
+    return product.status
+      .toLowerCase()
+      .replace(/_/g, " ")
+      .replace(/\b\w/g, (letter) => letter.toUpperCase());
+  }
+
   const columns = useMemo<ColumnDef<AdminApiProduct, unknown>[]>(
     () => [
       {
@@ -49,10 +65,15 @@ export default function ProductsTable({
             </div>
             <div className="min-w-0">
               <div className="truncate text-sm font-medium text-foreground">
-                {row.original.name}
+                {row.original.name || "—"}
               </div>
               <div className="truncate text-xs text-muted-foreground">
                 {getAdminProductCategoryName(row.original.category)}
+                {row.original.defaultVariant?.sku
+                  ? ` · SKU ${row.original.defaultVariant.sku}`
+                  : row.original.defaultVariant?.title
+                    ? ` · ${row.original.defaultVariant.title}`
+                    : ""}
               </div>
             </div>
           </div>
@@ -63,7 +84,9 @@ export default function ProductsTable({
         header: "Price",
         cell: ({ row }) => (
           <span className="font-mono tabular">
-            {formatCurrency(row.original.price)}
+            {typeof row.original.price === "number"
+              ? formatCurrency(row.original.price)
+              : "N/A"}
           </span>
         ),
       },
@@ -71,7 +94,12 @@ export default function ProductsTable({
         accessorKey: "stock",
         header: "Stock",
         cell: ({ row }) => {
-          const stock = row.original.stock ?? 0;
+          const stock = getProductStock(row.original);
+
+          if (stock == null) {
+            return <span className="text-muted-foreground">—</span>;
+          }
+
           return (
             <span
               className={`font-mono tabular ${
@@ -92,10 +120,14 @@ export default function ProductsTable({
         header: "Status",
         enableSorting: false,
         cell: ({ row }) => {
-          const stock = row.original.stock ?? 0;
-          return (
-            <StatusPill label={stockLabel(stock)} tone={toneForStock(stock)} />
-          );
+          const stock = getProductStock(row.original);
+          const status = getProductStatus(row.original);
+
+          if (stock === 0) {
+            return <StatusPill label={stockLabel(stock)} tone={toneForStock(stock)} />;
+          }
+
+          return <StatusPill label={status} tone={status === "Active" ? "success" : "neutral"} />;
         },
       },
       {
@@ -117,8 +149,9 @@ export default function ProductsTable({
     <DataTable
       data={products}
       columns={columns}
+      loading={loading}
       getRowHref={(row) => `/products/${row.id}`}
-      emptyLabel="No products in the catalog yet."
+      emptyLabel={emptyLabel}
     />
   );
 }
