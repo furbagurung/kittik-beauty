@@ -15,6 +15,12 @@ import {
 import { timeQuery } from "../utils/queryTiming.js";
 const PRODUCT_INCLUDE = {
   category: true,
+  subCategory: {
+    include: {
+      category: true,
+    },
+  },
+  brand: true,
   productmedia: true,
   producttag: true,
   options: {
@@ -35,13 +41,18 @@ const PRODUCT_INCLUDE = {
 };
 const PRODUCT_LIST_INCLUDE = {
   category: true,
+  subCategory: {
+    include: {
+      category: true,
+    },
+  },
+  brand: true,
   productmedia: {
     orderBy: { position: "asc" },
     take: 1,
   },
   variants: {
-    where: { isDefault: true },
-    orderBy: { position: "asc" },
+    orderBy: [{ isDefault: "desc" }, { position: "asc" }],
     take: 1,
   },
 };
@@ -53,6 +64,10 @@ function getUploadedFiles(req, fieldName) {
   return Array.isArray(files) ? files : [];
 }
 function parseCategoryId(value) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+function parseOptionalId(value) {
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
 }
@@ -106,9 +121,16 @@ function buildProductListResponse(product, req) {
     price: defaultVariant?.price ?? 0,
     image: buildPublicImageUrl(image, req) || null,
     category: product.category ?? product.categoryLegacy,
+    subCategory: product.subCategory ?? null,
+    brand: product.brand ?? null,
+    categoryId: product.categoryId,
+    subCategoryId: product.subCategoryId,
+    brandId: product.brandId,
     stock: defaultVariant?.stock ?? null,
     status: getProductCompatibilityStatus(product, defaultVariant),
     defaultVariant,
+    createdAt: product.createdAt,
+    updatedAt: product.updatedAt,
   };
 }
 
@@ -148,32 +170,6 @@ function normalizeStockFilter(stock) {
   if (normalized === "out_of_stock") return "out_of_stock";
 
   return "";
-}
-
-function buildDefaultVariantStockWhere(stockFilter) {
-  if (stockFilter === "in_stock") {
-    return { variants: { some: { isDefault: true, stock: { gt: 0 } } } };
-  }
-
-  if (stockFilter === "low_stock") {
-    return {
-      variants: {
-        some: {
-          isDefault: true,
-          stock: {
-            gt: 0,
-            lte: 10,
-          },
-        },
-      },
-    };
-  }
-
-  if (stockFilter === "out_of_stock") {
-    return { variants: { some: { isDefault: true, stock: { lte: 0 } } } };
-  }
-
-  return null;
 }
 
 function normalizeVariantStatus(status, stock) {
@@ -481,6 +477,59 @@ async function getProductWithRelations(id) {
   });
 }
 
+async function validateProductCatalogSelection(categoryId, subCategoryId, brandId) {
+  if (subCategoryId) {
+    const subCategory = await prisma.subCategory.findUnique({
+      where: { id: subCategoryId },
+    });
+
+    if (!subCategory) {
+      return "Selected sub-category does not exist";
+    }
+
+    if (categoryId && subCategory.categoryId !== categoryId) {
+      return "Selected sub-category does not belong to the selected category";
+    }
+  }
+
+  if (brandId) {
+    const brand = await prisma.brand.findUnique({
+      where: { id: brandId },
+    });
+
+    if (!brand) {
+      return "Selected brand does not exist";
+    }
+  }
+
+  return null;
+}
+
+function getListVariantStock(product) {
+  const stock = product.variants?.[0]?.stock;
+
+  return Number.isFinite(stock) ? stock : null;
+}
+
+function productMatchesStockFilter(product, stockFilter) {
+  if (!stockFilter) return true;
+
+  const stock = getListVariantStock(product);
+
+  if (stock === null) return false;
+  if (stockFilter === "in_stock") return stock > 10;
+  if (stockFilter === "low_stock") return stock > 0 && stock <= 10;
+  if (stockFilter === "out_of_stock") return stock <= 0;
+
+  return true;
+}
+
+function debugProductListFilters(details) {
+  if (process.env.NODE_ENV !== "development") return;
+
+  console.debug("[products:list] filters", details);
+}
+
 export async function getProducts(req, res) {
   try {
     const { category, search, sort } = req.query;
@@ -491,6 +540,10 @@ export async function getProducts(req, res) {
     const detail = parseQueryBoolean(req.query.detail);
     const pagination = getPaginationParams(req.query);
     const { page, limit, isPaginated } = pagination;
+    const listStockFilter =
+      statusFilter === "OUT_OF_STOCK" ? "out_of_stock" : stockFilter;
+    const needsListStockFiltering =
+      isPaginated && !detail && Boolean(listStockFilter);
     const filters = [];
 
     if (categoryFilter) {
@@ -499,6 +552,8 @@ export async function getProducts(req, res) {
           { categoryLegacy: categoryFilter },
           { category: { is: { name: categoryFilter } } },
           { category: { is: { slug: categoryFilter } } },
+          { subCategory: { is: { name: categoryFilter } } },
+          { subCategory: { is: { slug: categoryFilter } } },
         ],
       });
     }
@@ -509,6 +564,8 @@ export async function getProducts(req, res) {
           { title: { contains: searchFilter } },
           { categoryLegacy: { contains: searchFilter } },
           { category: { is: { name: { contains: searchFilter } } } },
+          { subCategory: { is: { name: { contains: searchFilter } } } },
+          { brand: { is: { name: { contains: searchFilter } } } },
           { vendor: { contains: searchFilter } },
           { productType: { contains: searchFilter } },
           { description: { contains: searchFilter } },
@@ -517,17 +574,20 @@ export async function getProducts(req, res) {
       });
     }
 
-    if (statusFilter === "OUT_OF_STOCK") {
-      const stockWhere = buildDefaultVariantStockWhere("out_of_stock");
-      if (stockWhere) filters.push(stockWhere);
-    } else if (statusFilter) {
+    if (statusFilter && statusFilter !== "OUT_OF_STOCK") {
       filters.push({ status: statusFilter });
     }
 
-    const stockWhere = buildDefaultVariantStockWhere(stockFilter);
-    if (stockWhere) filters.push(stockWhere);
-
     const where = filters.length > 0 ? { AND: filters } : {};
+    debugProductListFilters({
+      page,
+      limit,
+      search: searchFilter || undefined,
+      category: categoryFilter || undefined,
+      status: statusFilter || undefined,
+      stock: listStockFilter || undefined,
+    });
+
     const queryContext = {
       route: "GET /api/products",
       page: isPaginated ? page : undefined,
@@ -536,7 +596,7 @@ export async function getProducts(req, res) {
       hasSearch: Boolean(searchFilter) || undefined,
       category: categoryFilter || undefined,
       status: statusFilter || undefined,
-      stock: stockFilter || undefined,
+      stock: listStockFilter || undefined,
     };
     const include =
       isPaginated && !detail
@@ -544,25 +604,48 @@ export async function getProducts(req, res) {
         : PRODUCT_INCLUDE;
 
     const [total, products] = isPaginated
-      ? await Promise.all([
-          timeQuery(
-            "products.count",
-            () => prisma.product.count({ where }),
-            queryContext,
-          ),
-          timeQuery(
+      ? needsListStockFiltering
+        ? await timeQuery(
             "products.findMany",
-            () =>
-              prisma.product.findMany({
+            async () => {
+              const matchingProducts = await prisma.product.findMany({
                 where,
                 include,
                 orderBy: { createdAt: "desc" },
-                skip: pagination.skip,
-                take: pagination.take,
-              }),
+              });
+              const filteredProducts = matchingProducts.filter((product) =>
+                productMatchesStockFilter(product, listStockFilter),
+              );
+
+              return [
+                filteredProducts.length,
+                filteredProducts.slice(
+                  pagination.skip,
+                  pagination.skip + pagination.take,
+                ),
+              ];
+            },
             queryContext,
-          ),
-        ])
+          )
+        : await Promise.all([
+            timeQuery(
+              "products.count",
+              () => prisma.product.count({ where }),
+              queryContext,
+            ),
+            timeQuery(
+              "products.findMany",
+              () =>
+                prisma.product.findMany({
+                  where,
+                  include,
+                  orderBy: { createdAt: "desc" },
+                  skip: pagination.skip,
+                  take: pagination.take,
+                }),
+              queryContext,
+            ),
+          ])
       : [
           null,
           await timeQuery(
@@ -740,6 +823,20 @@ export async function createProduct(req, res) {
     const tags = parseJsonArray(req.body.tags)
       .map((tag) => String(tag).trim())
       .filter(Boolean);
+    const categoryId = parseCategoryId(req.body.categoryId);
+    const subCategoryId = parseOptionalId(req.body.subCategoryId);
+    const brandId = parseOptionalId(req.body.brandId);
+    const catalogError = await validateProductCatalogSelection(
+      categoryId,
+      subCategoryId,
+      brandId,
+    );
+
+    if (catalogError) {
+      await deleteManagedImageFiles(uploadedImagePaths);
+      return res.status(400).json({ message: catalogError });
+    }
+
     const slug = await getUniqueSlug(productTitle);
 
     const createdProduct = await prisma.$transaction(async (tx) => {
@@ -752,7 +849,9 @@ export async function createProduct(req, res) {
           productType: productType?.trim() || null,
           vendor: vendor?.trim() || null,
           categoryLegacy: category,
-          categoryId: parseCategoryId(req.body.categoryId),
+          categoryId,
+          subCategoryId,
+          brandId,
           featuredImage: primaryImage,
           seoTitle: seoTitle?.trim() || null,
           seoDescription: seoDescription?.trim() || null,
@@ -938,6 +1037,20 @@ export async function updateProduct(req, res) {
     const tags = parseJsonArray(req.body.tags)
       .map((tag) => String(tag).trim())
       .filter(Boolean);
+    const categoryId = parseCategoryId(req.body.categoryId);
+    const subCategoryId = parseOptionalId(req.body.subCategoryId);
+    const brandId = parseOptionalId(req.body.brandId);
+    const catalogError = await validateProductCatalogSelection(
+      categoryId,
+      subCategoryId,
+      brandId,
+    );
+
+    if (catalogError) {
+      await deleteManagedImageFiles(uploadedImagePaths);
+      return res.status(400).json({ message: catalogError });
+    }
+
     const slug = await getUniqueSlug(productTitle, id);
 
     const updatedProduct = await prisma.$transaction(async (tx) => {
@@ -951,7 +1064,9 @@ export async function updateProduct(req, res) {
           productType: productType?.trim() || null,
           vendor: vendor?.trim() || null,
           categoryLegacy: category,
-          categoryId: parseCategoryId(req.body.categoryId),
+          categoryId,
+          subCategoryId,
+          brandId,
           featuredImage: nextPrimaryImage,
           seoTitle: seoTitle?.trim() || null,
           seoDescription: seoDescription?.trim() || null,

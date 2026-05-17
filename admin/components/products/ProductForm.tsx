@@ -32,7 +32,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { getProductCategories, type AdminApiProductCategory } from "@/lib/api";
+import {
+  getBrands,
+  getProductCategories,
+  getSubCategories,
+  type AdminApiBrand,
+  type AdminApiProductCategory,
+  type AdminApiSubCategory,
+} from "@/lib/api";
 import {
   getAdminProductCategoryId,
   getAdminProductCategoryName,
@@ -42,6 +49,8 @@ export type ProductFormValues = {
   name: string;
   category: string;
   categoryId: number | null;
+  subCategoryId: number | null;
+  brandId: number | null;
   price: string;
   stock: number;
   status: Product["status"];
@@ -73,6 +82,7 @@ const statusOptions: Product["status"][] = [
   "Archived",
   "Out of Stock",
 ];
+const NONE_VALUE = "__none__";
 
 type ProductOptionDraft = {
   name: string;
@@ -274,9 +284,18 @@ export default function ProductForm({
   const [categoryId, setCategoryId] = useState(() =>
     resolveInitialCategoryId(defaultValues, [], mode),
   );
+  const [subCategoryId, setSubCategoryId] = useState(
+    defaultValues?.subCategoryId ? String(defaultValues.subCategoryId) : NONE_VALUE,
+  );
+  const [brandId, setBrandId] = useState(
+    defaultValues?.brandId ? String(defaultValues.brandId) : NONE_VALUE,
+  );
   const [categories, setCategories] = useState<AdminApiProductCategory[]>([]);
+  const [subCategories, setSubCategories] = useState<AdminApiSubCategory[]>([]);
+  const [brands, setBrands] = useState<AdminApiBrand[]>([]);
   const [categoriesLoaded, setCategoriesLoaded] = useState(false);
   const [categoriesError, setCategoriesError] = useState("");
+  const [catalogMetaError, setCatalogMetaError] = useState("");
   const [status, setStatus] = useState<Product["status"]>(
     (defaultValues?.status as Product["status"]) ?? "Active",
   );
@@ -350,6 +369,10 @@ export default function ProductForm({
     setPrice(defaultValues?.price ?? "");
     setStock(defaultValues?.stock ?? 0);
     setCategoryId(resolveInitialCategoryId(defaultValues, [], mode));
+    setSubCategoryId(
+      defaultValues?.subCategoryId ? String(defaultValues.subCategoryId) : NONE_VALUE,
+    );
+    setBrandId(defaultValues?.brandId ? String(defaultValues.brandId) : NONE_VALUE);
     setStatus((defaultValues?.status as Product["status"]) ?? "Active");
     setOptions(defaultValues?.options ?? []);
     setHasVariants(shouldShowVariantEditor(defaultValues));
@@ -375,6 +398,8 @@ export default function ProductForm({
   }, [
     defaultValues?.category,
     defaultValues?.categoryId,
+    defaultValues?.subCategoryId,
+    defaultValues?.brandId,
     defaultValues?.description,
     defaultValues?.image,
     defaultValues?.name,
@@ -426,6 +451,41 @@ export default function ProductForm({
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+
+    async function loadCatalogMeta() {
+      try {
+        const [subCategoryData, brandData] = await Promise.all([
+          getSubCategories(true),
+          getBrands(true),
+        ]);
+
+        if (!cancelled) {
+          setSubCategories(subCategoryData);
+          setBrands(brandData);
+          setCatalogMetaError("");
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setSubCategories([]);
+          setBrands([]);
+          setCatalogMetaError(
+            error instanceof Error
+              ? error.message
+              : "Failed to load brands or sub-categories.",
+          );
+        }
+      }
+    }
+
+    loadCatalogMeta();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     if (!categoriesLoaded) return;
 
     setCategoryId(
@@ -443,6 +503,26 @@ export default function ProductForm({
   const selectedCategory = useMemo(
     () => categories.find((item) => String(item.id) === categoryId) ?? null,
     [categories, categoryId],
+  );
+  const availableSubCategories = useMemo(
+    () =>
+      subCategories.filter((item) => String(item.categoryId) === categoryId),
+    [categoryId, subCategories],
+  );
+  const selectedSubCategory = useMemo(
+    () =>
+      subCategoryId === NONE_VALUE
+        ? null
+        : availableSubCategories.find((item) => String(item.id) === subCategoryId) ??
+          null,
+    [availableSubCategories, subCategoryId],
+  );
+  const selectedBrand = useMemo(
+    () =>
+      brandId === NONE_VALUE
+        ? null
+        : brands.find((item) => String(item.id) === brandId) ?? null,
+    [brandId, brands],
   );
   const legacyCategoryName = getAdminProductCategoryName(
     defaultValues?.category,
@@ -507,6 +587,10 @@ export default function ProductForm({
     setPrice(defaultValues?.price ?? "");
     setStock(defaultValues?.stock ?? 0);
     setCategoryId(resolveInitialCategoryId(defaultValues, categories, mode));
+    setSubCategoryId(
+      defaultValues?.subCategoryId ? String(defaultValues.subCategoryId) : NONE_VALUE,
+    );
+    setBrandId(defaultValues?.brandId ? String(defaultValues.brandId) : NONE_VALUE);
     setStatus((defaultValues?.status as Product["status"]) ?? "Active");
     setOptions(defaultValues?.options ?? []);
     setHasVariants(shouldShowVariantEditor(defaultValues));
@@ -963,6 +1047,8 @@ export default function ProductForm({
       name,
       category: selectedCategory.name,
       categoryId: selectedCategory.id,
+      subCategoryId: selectedSubCategory?.id ?? null,
+      brandId: selectedBrand?.id ?? null,
       price: String(price || ""),
       stock: Number(stock || 0),
       status,
@@ -1020,6 +1106,16 @@ export default function ProductForm({
     <form onSubmit={handleSubmit} className="space-y-6">
       <input type="hidden" name="category" value={categoryName} />
       <input type="hidden" name="categoryId" value={categoryId} />
+      <input
+        type="hidden"
+        name="subCategoryId"
+        value={selectedSubCategory ? subCategoryId : ""}
+      />
+      <input
+        type="hidden"
+        name="brandId"
+        value={brandId === NONE_VALUE ? "" : brandId}
+      />
       <input type="hidden" name="status" value={status} />
 
       <ProductEditorHeader
@@ -1100,13 +1196,16 @@ export default function ProductForm({
             </div>
 
             <div className="rounded-lg border border-transparent py-1.5">
-              <div className="grid gap-4 xl:grid-cols-[1.2fr_1fr_1fr]">
+              <div className="grid gap-4 xl:grid-cols-3">
                 <ProductEditorField label="Category">
                   <div className="relative">
                     <FolderKanban className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                     <Select
                       value={categoryId}
-                      onValueChange={(value) => setCategoryId(value)}
+                      onValueChange={(value) => {
+                        setCategoryId(value);
+                        setSubCategoryId(NONE_VALUE);
+                      }}
                       disabled={isBusy}
                     >
                       <SelectTrigger className="h-11 rounded-xl pl-9">
@@ -1128,6 +1227,61 @@ export default function ProductForm({
                   ) : null}
                 </ProductEditorField>
 
+                <ProductEditorField label="Sub-category">
+                  <Select
+                    value={selectedSubCategory ? subCategoryId : NONE_VALUE}
+                    onValueChange={setSubCategoryId}
+                    disabled={isBusy || !selectedCategory}
+                  >
+                    <SelectTrigger className="h-11 rounded-xl">
+                      <SelectValue placeholder="Optional sub-category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NONE_VALUE}>No sub-category</SelectItem>
+                      {availableSubCategories.map((item) => (
+                        <SelectItem key={item.id} value={String(item.id)}>
+                          {item.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs leading-5 text-muted-foreground">
+                    Depends on the selected category.
+                  </p>
+                </ProductEditorField>
+
+                <ProductEditorField label="Brand">
+                  <Select
+                    value={brandId}
+                    onValueChange={setBrandId}
+                    disabled={isBusy}
+                  >
+                    <SelectTrigger className="h-11 rounded-xl">
+                      <SelectValue placeholder="Optional brand" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NONE_VALUE}>No brand</SelectItem>
+                      {brands.map((item) => (
+                        <SelectItem key={item.id} value={String(item.id)}>
+                          {item.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs leading-5 text-muted-foreground">
+                    Brand is independent from category.
+                  </p>
+                  {catalogMetaError ? (
+                    <p className="text-xs leading-5 text-[color:var(--destructive)]">
+                      {catalogMetaError}
+                    </p>
+                  ) : null}
+                </ProductEditorField>
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-transparent py-1.5">
+              <div className="grid gap-4 xl:grid-cols-2">
                 <ProductEditorField label="Price">
                   <div className="space-y-2.5">
                     <div className="relative">

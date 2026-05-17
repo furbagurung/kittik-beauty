@@ -18,7 +18,10 @@
       "Bash(node --input-type=module -e 'import\\('\\\\''./src/config/prisma.js'\\\\''\\).then\\(async \\({ prisma }\\) => { try { const rows = await prisma.$queryRaw`SELECT migration_name, finished_at, rolled_back_at FROM _prisma_migrations`; console.log\\('\\\\''migrations table rows:'\\\\'', JSON.stringify\\(rows\\)\\); } catch \\(e\\) { console.log\\('\\\\''migrations table not present or errored:'\\\\'', e.message\\); } await prisma.$disconnect\\(\\); }\\);')",
       "Bash(node scripts/align-db-to-schema.mjs)",
       "Bash(node --input-type=module -e 'import\\('\\\\''./src/config/prisma.js'\\\\''\\).then\\(async \\({ prisma }\\) => { try { const products = await prisma.product.findMany\\({ include: { media: true, tags: true, options: { include: { values: true } }, variants: { include: { selections: { include: { option: true, optionValue: true } } } } }, orderBy: { createdAt: '\\\\''desc'\\\\'' }, take: 3 }\\); console.log\\('\\\\''OK: fetched'\\\\'', products.length, '\\\\''products'\\\\''\\); if \\(products[0]\\) { const p = products[0]; console.log\\('\\\\''sample:'\\\\'', JSON.stringify\\({ id: p.id, title: p.title, media: p.media.length, tags: p.tags.length, options: p.options.length, variants: p.variants.length, firstVariantStatus: p.variants[0]?.status, firstVariantSku: p.variants[0]?.sku }\\)\\); } } catch \\(e\\) { console.error\\('\\\\''ERR:'\\\\'', e.message\\); process.exitCode = 1; } finally { await prisma.$disconnect\\(\\); } }\\);')",
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "Bash(claude mcp *)",
+      "Bash(echo \"exit=$?\")",
+      "Bash(npx eslint *)"
     ]
   }
 }

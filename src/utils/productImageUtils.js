@@ -259,6 +259,10 @@ export function buildProductResponse(product, req) {
     shortDescription: product.shortDescription,
     category: product.category ?? product.categoryLegacy,
     categoryId: product.categoryId,
+    subCategory: product.subCategory ?? null,
+    subCategoryId: product.subCategoryId ?? null,
+    brand: product.brand ?? null,
+    brandId: product.brandId ?? null,
     status: compatibilityStatus,
 
     image: buildPublicImageUrl(featuredImage, req) || undefined,
@@ -266,6 +270,7 @@ export function buildProductResponse(product, req) {
 
     price: defaultVariant?.price ?? 0,
     stock,
+    defaultVariant,
     defaultVariantId: defaultVariant?.id ?? null,
 
     media: publicMedia,

@@ -1,4 +1,4 @@
-import { API_BASE_URL } from "@/lib/api-config";
+import { RUNTIME_API_BASE_URL } from "@/lib/api-config";
 
 const ADMIN_TOKEN_KEY = "admin_token";
 const ADMIN_USER_KEY = "admin_user";
@@ -158,7 +158,7 @@ async function validateAdminToken(token: string) {
     () => controller.abort(),
     SESSION_VALIDATION_TIMEOUT_MS,
   );
-  const requestUrl = `${API_BASE_URL}/auth/admin/me`;
+  const requestUrl = `${RUNTIME_API_BASE_URL}/auth/admin/me`;
 
   try {
     debugAdminSession("restore validate start", {

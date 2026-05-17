@@ -79,7 +79,11 @@ model Product {
   vendor           String?
   categoryLegacy   String?          @map("category")
   categoryId       Int?
+  subCategoryId    Int?
+  brandId          Int?
   category         ProductCategory? @relation(fields: [categoryId], references: [id])
+  subCategory      SubCategory?     @relation(fields: [subCategoryId], references: [id])
+  brand            Brand?           @relation(fields: [brandId], references: [id])
   featuredImage    String?
   seoTitle         String?
   seoDescription   String?          @db.Text
@@ -94,18 +98,55 @@ model Product {
   reelproducttag   reelproducttag[]
 
   @@map("product")
+  @@index([subCategoryId], map: "Product_subCategoryId_idx")
+  @@index([brandId], map: "Product_brandId_idx")
 }
 
 model ProductCategory {
-  id        Int       @id @default(autoincrement())
-  name      String    @unique(map: "ProductCategory_name_key")
-  slug      String    @unique(map: "ProductCategory_slug_key")
-  sortOrder Int       @default(0)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @default(now())
-  products  Product[]
+  id            Int           @id @default(autoincrement())
+  name          String        @unique(map: "ProductCategory_name_key")
+  slug          String        @unique(map: "ProductCategory_slug_key")
+  sortOrder     Int           @default(0)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @default(now())
+  products      Product[]
+  subCategories SubCategory[]
 
   @@map("productcategory")
+}
+
+model Brand {
+  id          Int            @id @default(autoincrement())
+  name        String         @unique(map: "Brand_name_key")
+  slug        String         @unique(map: "Brand_slug_key")
+  description String?        @db.Text
+  logo        String?
+  status      catalog_status @default(ACTIVE)
+  sortOrder   Int            @default(0)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  products    Product[]
+
+  @@map("brand")
+}
+
+model SubCategory {
+  id          Int             @id @default(autoincrement())
+  name        String
+  slug        String          @unique(map: "SubCategory_slug_key")
+  description String?         @db.Text
+  image       String?
+  categoryId  Int
+  status      catalog_status  @default(ACTIVE)
+  sortOrder   Int             @default(0)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  category    ProductCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  products    Product[]
+
+  @@unique([categoryId, name], map: "SubCategory_categoryId_name_key")
+  @@index([categoryId], map: "SubCategory_categoryId_idx")
+  @@map("subcategory")
 }
 
 model ProductMedia {
@@ -343,4 +384,9 @@ enum productvariant_status {
   ACTIVE
   ARCHIVED
   OUT_OF_STOCK
+}
+
+enum catalog_status {
+  ACTIVE
+  ARCHIVED
 }

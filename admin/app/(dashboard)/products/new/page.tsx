@@ -28,6 +28,8 @@ export default function NewProductPage() {
         price: Number(values.price || 0),
         category: values.category,
         categoryId: values.categoryId,
+        subCategoryId: values.subCategoryId,
+        brandId: values.brandId,
         stock: Number(values.stock ?? 0),
         status: values.status,
         description: values.description || "",

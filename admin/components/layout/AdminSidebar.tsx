@@ -51,6 +51,8 @@ const sections: NavSection[] = [
         children: [
           { label: "Products", href: "/products" },
           { label: "Categories", href: "/products/categories" },
+          { label: "Sub-categories", href: "/sub-categories" },
+          { label: "Brands", href: "/brands" },
         ],
       },
     ],

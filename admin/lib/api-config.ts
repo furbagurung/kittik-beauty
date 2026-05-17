@@ -44,3 +44,12 @@ const fallbackApiBaseUrl =
 export const API_BASE_URL = normalizeApiBaseUrl(
   configuredApiBaseUrl || fallbackApiBaseUrl,
 );
+
+export const RUNTIME_API_BASE_URL =
+  typeof window !== "undefined" &&
+  ["localhost", "127.0.0.1"].includes(window.location.hostname) &&
+  !API_BASE_URL.includes("localhost") &&
+  !API_BASE_URL.includes("127.0.0.1") &&
+  !API_BASE_URL.includes("192.168.")
+    ? DEVELOPMENT_API_BASE_URL
+    : API_BASE_URL;

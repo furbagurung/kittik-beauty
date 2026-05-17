@@ -1,6 +1,6 @@
 import type { AdminUser } from "@/lib/admin-session";
 import { clearAdminSession, getStoredAdminToken } from "@/lib/admin-session";
-import { API_BASE_URL } from "@/lib/api-config";
+import { RUNTIME_API_BASE_URL } from "@/lib/api-config";
 import type { AdminProductCategoryValue } from "@/lib/product-category";
 import type {
   ProductMedia,
@@ -9,7 +9,7 @@ import type {
   ProductVariant,
 } from "@/types/product";
 
-const API_ORIGIN = API_BASE_URL.replace(/\/api$/, "");
+const API_ORIGIN = RUNTIME_API_BASE_URL.replace(/\/api$/, "");
 export async function apiFetch<T>(
   endpoint: string,
   options?: RequestInit,
@@ -18,7 +18,7 @@ export async function apiFetch<T>(
   const isFormDataBody =
     typeof FormData !== "undefined" && options?.body instanceof FormData;
 
-  const requestUrl = `${API_BASE_URL}${endpoint}`;
+  const requestUrl = `${RUNTIME_API_BASE_URL}${endpoint}`;
 
   try {
     const response = await fetch(requestUrl, {
@@ -75,6 +75,10 @@ export type AdminApiProduct = {
   media?: ProductMedia[];
   category: AdminProductCategoryValue;
   categoryId?: number | null;
+  subCategory?: AdminApiSubCategory | null;
+  subCategoryId?: number | null;
+  brand?: AdminApiBrand | null;
+  brandId?: number | null;
   stock?: number;
   status?: ProductStatus;
   description?: string;
@@ -88,6 +92,7 @@ export type AdminApiProduct = {
   defaultVariant?: ProductVariant | null;
   defaultVariantId?: number | null;
   createdAt?: string;
+  updatedAt?: string;
 };
 
 export type ProductListPaginationMeta = {
@@ -115,6 +120,36 @@ export type AdminApiProductCategory = {
   id: number;
   name: string;
   slug: string;
+  sortOrder: number;
+  productCount: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CatalogStatus = "ACTIVE" | "ARCHIVED";
+
+export type AdminApiBrand = {
+  id: number;
+  name: string;
+  slug: string;
+  description?: string | null;
+  logo?: string | null;
+  status: CatalogStatus;
+  sortOrder: number;
+  productCount: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AdminApiSubCategory = {
+  id: number;
+  name: string;
+  slug: string;
+  description?: string | null;
+  image?: string | null;
+  categoryId: number;
+  category?: AdminApiProductCategory | null;
+  status: CatalogStatus;
   sortOrder: number;
   productCount: number;
   createdAt: string;
@@ -183,6 +218,8 @@ type ProductMutationInput = {
   price: number;
   category: string;
   categoryId?: number | null;
+  subCategoryId?: number | null;
+  brandId?: number | null;
   stock: number;
   status: ProductStatus;
   description?: string;
@@ -237,6 +274,11 @@ function buildProductMutationFormData(data: ProductMutationInput) {
     "categoryId",
     data.categoryId == null ? "" : String(data.categoryId),
   );
+  formData.append(
+    "subCategoryId",
+    data.subCategoryId == null ? "" : String(data.subCategoryId),
+  );
+  formData.append("brandId", data.brandId == null ? "" : String(data.brandId));
   formData.append("stock", String(data.stock));
   formData.append("status", data.status);
   formData.append("description", data.description ?? "");
@@ -400,8 +442,129 @@ export async function deleteProductCategory(id: number) {
   );
 }
 
+export async function getBrands(includeArchived = true) {
+  return apiFetch<AdminApiBrand[]>(
+    `/brands${includeArchived ? "?includeArchived=true" : ""}`,
+  );
+}
+
+export async function createBrand(data: {
+  name: string;
+  slug?: string;
+  description?: string;
+  logo?: string;
+  status?: CatalogStatus;
+  sortOrder?: number;
+}) {
+  return apiFetch<AdminApiBrand>(
+    "/brands",
+    {
+      method: "POST",
+      body: JSON.stringify(data),
+    },
+    getStoredAdminToken() || undefined,
+  );
+}
+
+export async function updateBrand(
+  id: number,
+  data: {
+    name: string;
+    slug?: string;
+    description?: string;
+    logo?: string;
+    status?: CatalogStatus;
+    sortOrder?: number;
+  },
+) {
+  return apiFetch<AdminApiBrand>(
+    `/brands/${id}`,
+    {
+      method: "PUT",
+      body: JSON.stringify(data),
+    },
+    getStoredAdminToken() || undefined,
+  );
+}
+
+export async function deleteBrand(id: number) {
+  return apiFetch<{ message: string; brand?: AdminApiBrand }>(
+    `/brands/${id}`,
+    {
+      method: "DELETE",
+    },
+    getStoredAdminToken() || undefined,
+  );
+}
+
+export async function getSubCategories(includeArchived = true) {
+  return apiFetch<AdminApiSubCategory[]>(
+    `/sub-categories${includeArchived ? "?includeArchived=true" : ""}`,
+  );
+}
+
+export async function getSubCategoriesByCategory(
+  categoryId: number,
+  includeArchived = true,
+) {
+  return apiFetch<AdminApiSubCategory[]>(
+    `/sub-categories/category/${categoryId}${includeArchived ? "?includeArchived=true" : ""}`,
+  );
+}
+
+export async function createSubCategory(data: {
+  name: string;
+  slug?: string;
+  description?: string;
+  image?: string;
+  categoryId: number;
+  status?: CatalogStatus;
+  sortOrder?: number;
+}) {
+  return apiFetch<AdminApiSubCategory>(
+    "/sub-categories",
+    {
+      method: "POST",
+      body: JSON.stringify(data),
+    },
+    getStoredAdminToken() || undefined,
+  );
+}
+
+export async function updateSubCategory(
+  id: number,
+  data: {
+    name: string;
+    slug?: string;
+    description?: string;
+    image?: string;
+    categoryId: number;
+    status?: CatalogStatus;
+    sortOrder?: number;
+  },
+) {
+  return apiFetch<AdminApiSubCategory>(
+    `/sub-categories/${id}`,
+    {
+      method: "PUT",
+      body: JSON.stringify(data),
+    },
+    getStoredAdminToken() || undefined,
+  );
+}
+
+export async function deleteSubCategory(id: number) {
+  return apiFetch<{ message: string; subCategory?: AdminApiSubCategory }>(
+    `/sub-categories/${id}`,
+    {
+      method: "DELETE",
+    },
+    getStoredAdminToken() || undefined,
+  );
+}
+
 export async function getBanners() {
-  const res = await fetch(`${API_BASE_URL}/banners`);
+  const res = await fetch(`${RUNTIME_API_BASE_URL}/banners`);
   const response = await res.json();
 
   const banners: AdminApiBanner[] = response.data ?? response;
@@ -424,7 +587,7 @@ export async function createBanner(data: BannerMutationInput, file: File) {
   formData.append("link", data.link || "");
   formData.append("order", String(data.order || 0));
 
-  const res = await fetch(`${API_BASE_URL}/banners`, {
+  const res = await fetch(`${RUNTIME_API_BASE_URL}/banners`, {
     method: "POST",
     body: formData,
   });
@@ -433,7 +596,7 @@ export async function createBanner(data: BannerMutationInput, file: File) {
 }
 
 export async function deleteBanner(id: number) {
-  await fetch(`${API_BASE_URL}/banners/${id}`, {
+  await fetch(`${RUNTIME_API_BASE_URL}/banners/${id}`, {
     method: "DELETE",
   });
 }
@@ -545,7 +708,7 @@ export type AdminLoginResponse = {
 
 export async function adminLogin(data: { email: string; password: string }) {
   console.debug("[admin-auth] login request", {
-    requestUrl: `${API_BASE_URL}/auth/login`,
+    requestUrl: `${RUNTIME_API_BASE_URL}/auth/login`,
   });
 
   const response = await apiFetch<AdminLoginResponse>("/auth/login", {
@@ -565,7 +728,7 @@ export async function getCurrentAdmin(
   token = getStoredAdminToken() || undefined,
 ) {
   console.debug("[admin-auth] admin validation request", {
-    requestUrl: `${API_BASE_URL}/auth/admin/me`,
+    requestUrl: `${RUNTIME_API_BASE_URL}/auth/admin/me`,
     hasToken: Boolean(token),
   });
 

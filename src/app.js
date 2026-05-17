@@ -3,11 +3,13 @@ import express from "express";
 import { UPLOADS_ROOT } from "./config/uploads.js";
 import authRoutes from "./routes/authRoutes.js";
 import bannerRoutes from "./routes/bannerRoutes.js";
+import brandRoutes from "./routes/brandRoutes.js";
 import categoryRoutes from "./routes/categoryRoutes.js";
 import orderRoutes from "./routes/orderRoutes.js";
 import paymentRoutes from "./routes/paymentRoutes.js";
 import productRoutes from "./routes/productRoutes.js";
 import reelRoutes from "./routes/reelRoutes.js";
+import subCategoryRoutes from "./routes/subCategoryRoutes.js";
 const app = express();
 app.set("trust proxy", true);
 
@@ -30,7 +32,9 @@ app.get("/api/health", (_req, res) => {
 });
 
 app.use("/api/auth", authRoutes);
+app.use("/api/brands", brandRoutes);
 app.use("/api/categories", categoryRoutes);
+app.use("/api/sub-categories", subCategoryRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/payments", paymentRoutes);
@@ -42,7 +46,18 @@ app.get("/", (_req, res) => {
 app.get("/api/debug-routes", (_req, res) => {
   res.json({
     ok: true,
-    routes: ["/api/banners", "/api/health"],
+    routes: [
+      "/api/auth",
+      "/api/banners",
+      "/api/brands",
+      "/api/categories",
+      "/api/health",
+      "/api/orders",
+      "/api/payments",
+      "/api/products",
+      "/api/reels",
+      "/api/sub-categories",
+    ],
   });
 });
 

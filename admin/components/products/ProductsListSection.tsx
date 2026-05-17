@@ -1,14 +1,24 @@
 "use client";
 
-import ProductsTable from "@/components/products/ProductsTable";
-import Notice from "@/components/shared/Notice";
+import ProductsTable, {
+  getProductStock,
+  normalizeProductStatus,
+} from "@/components/products/ProductsTable";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -21,8 +31,16 @@ import {
   type ProductListPaginationMeta,
 } from "@/lib/api";
 import { getAdminProductCategoryName } from "@/lib/product-category";
-import { ChevronLeft, ChevronRight, Search, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import {
+  AlertCircle,
+  ChevronLeft,
+  ChevronRight,
+  Plus,
+  Search,
+  X,
+} from "lucide-react";
+import Link from "next/link";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 const LIMIT_OPTIONS = [10, 20, 50] as const;
 const DEFAULT_LIMIT = 10;
@@ -48,6 +66,26 @@ function getStockFilterLabel(value: string) {
   return STOCK_OPTIONS.find((option) => option.value === value)?.label ?? value;
 }
 
+function countActiveProducts(products: AdminApiProduct[]) {
+  return products.filter(
+    (product) => normalizeProductStatus(product) === "Active",
+  ).length;
+}
+
+function countLowStockProducts(products: AdminApiProduct[]) {
+  return products.filter((product) => {
+    const stock = getProductStock(product);
+    return stock != null && stock > 0 && stock <= 10;
+  }).length;
+}
+
+function countOutOfStockProducts(products: AdminApiProduct[]) {
+  return products.filter((product) => {
+    const stock = getProductStock(product);
+    return stock != null && stock <= 0;
+  }).length;
+}
+
 export default function ProductsListSection() {
   const [products, setProducts] = useState<AdminApiProduct[]>([]);
   const [categories, setCategories] = useState<AdminApiProductCategory[]>([]);
@@ -61,6 +99,7 @@ export default function ProductsListSection() {
   const [categoryFilter, setCategoryFilter] = useState(ALL_FILTERS);
   const [statusFilter, setStatusFilter] = useState(ALL_FILTERS);
   const [stockFilter, setStockFilter] = useState(ALL_FILTERS);
+  const [refreshToken, setRefreshToken] = useState(0);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -132,7 +171,15 @@ export default function ProductsListSection() {
     return () => {
       cancelled = true;
     };
-  }, [page, limit, debouncedSearch, categoryFilter, statusFilter, stockFilter]);
+  }, [
+    page,
+    limit,
+    debouncedSearch,
+    categoryFilter,
+    statusFilter,
+    stockFilter,
+    refreshToken,
+  ]);
 
   const fallbackCategories = useMemo(() => {
     const names = new Set<string>();
@@ -204,15 +251,49 @@ export default function ProductsListSection() {
   const currentLimit = pagination?.limit ?? limit;
   const rangeStart = total === 0 ? 0 : (currentPage - 1) * currentLimit + 1;
   const rangeEnd = Math.min(currentPage * currentLimit, total);
+  const showEmptyState =
+    !loading && !errorMessage && products.length === 0 && total === 0;
 
-  const resetFilters = () => {
+  const stats = [
+    {
+      label: "Total products",
+      value: total || products.length,
+      description: total ? "Across your catalog" : "Visible on this page",
+    },
+    {
+      label: "Active products",
+      value: countActiveProducts(products),
+      description: "Visible on this page",
+    },
+    {
+      label: "Low stock",
+      value: countLowStockProducts(products),
+      description: "10 units or fewer",
+    },
+    {
+      label: "Out of stock",
+      value: countOutOfStockProducts(products),
+      description: "No units available",
+    },
+  ];
+
+  const resetFilters = useCallback(() => {
     setSearchInput("");
     setDebouncedSearch("");
     setCategoryFilter(ALL_FILTERS);
     setStatusFilter(ALL_FILTERS);
     setStockFilter(ALL_FILTERS);
     setPage(1);
-  };
+  }, []);
+
+  const handleProductDeleted = useCallback(() => {
+    if (products.length <= 1 && page > 1) {
+      setPage((current) => Math.max(1, current - 1));
+      return;
+    }
+
+    setRefreshToken((current) => current + 1);
+  }, [page, products.length]);
 
   const goPrev = () => {
     if (currentPage > 1) setPage(currentPage - 1);
@@ -244,19 +325,37 @@ export default function ProductsListSection() {
     setPage(1);
   };
 
-  const showFilteredEmpty =
-    !loading && !errorMessage && products.length === 0 && total === 0;
-
   return (
     <div className="flex flex-col gap-4">
-      <Card size="sm">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {stats.map((stat) => (
+          <Card key={stat.label} size="sm">
+            <CardHeader>
+              <CardDescription>{stat.label}</CardDescription>
+              <CardTitle className="text-2xl tabular">
+                {stat.value.toLocaleString()}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-xs text-muted-foreground">
+                {stat.description}
+              </p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Product filters</CardTitle>
+          <CardDescription>
+            Search and narrow the catalog without leaving the page.
+          </CardDescription>
+        </CardHeader>
         <CardContent className="flex flex-col gap-3">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div className="relative min-w-0 flex-1 lg:max-w-xl">
-              <Search
-                className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-                strokeWidth={2}
-              />
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+            <div className="relative min-w-0 flex-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={searchInput}
                 onChange={(event) => setSearchInput(event.target.value)}
@@ -267,42 +366,48 @@ export default function ProductsListSection() {
 
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:flex lg:items-center">
               <Select value={categoryFilter} onValueChange={onCategoryChange}>
-                <SelectTrigger className="lg:w-[180px]">
+                <SelectTrigger className="lg:w-[190px]">
                   <SelectValue placeholder="All categories" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={ALL_FILTERS}>All categories</SelectItem>
-                  {categoryOptions.map((category) => (
-                    <SelectItem key={category} value={category}>
-                      {category}
-                    </SelectItem>
-                  ))}
+                  <SelectGroup>
+                    <SelectItem value={ALL_FILTERS}>All categories</SelectItem>
+                    {categoryOptions.map((category) => (
+                      <SelectItem key={category} value={category}>
+                        {category}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
                 </SelectContent>
               </Select>
 
               <Select value={statusFilter} onValueChange={onStatusChange}>
-                <SelectTrigger className="lg:w-[160px]">
+                <SelectTrigger className="lg:w-[170px]">
                   <SelectValue placeholder="All statuses" />
                 </SelectTrigger>
                 <SelectContent>
-                  {STATUS_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
+                  <SelectGroup>
+                    {STATUS_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
                 </SelectContent>
               </Select>
 
               <Select value={stockFilter} onValueChange={onStockChange}>
-                <SelectTrigger className="lg:w-[150px]">
+                <SelectTrigger className="lg:w-[160px]">
                   <SelectValue placeholder="All stock" />
                 </SelectTrigger>
                 <SelectContent>
-                  {STOCK_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
+                  <SelectGroup>
+                    {STOCK_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
                 </SelectContent>
               </Select>
 
@@ -325,10 +430,10 @@ export default function ProductsListSection() {
                   <button
                     type="button"
                     aria-label={`Clear ${filter.label}`}
-                    className="ml-1 inline-flex rounded-full text-muted-foreground hover:text-foreground"
+                    className="inline-flex rounded-full text-muted-foreground hover:text-foreground"
                     onClick={filter.clear}
                   >
-                    <X className="size-3" strokeWidth={2} />
+                    <X />
                   </button>
                 </Badge>
               ))}
@@ -337,95 +442,118 @@ export default function ProductsListSection() {
         </CardContent>
       </Card>
 
-      {errorMessage ? <Notice tone="danger" message={errorMessage} /> : null}
+      {errorMessage ? (
+        <Alert variant="destructive">
+          <AlertCircle />
+          <AlertTitle>Unable to load products</AlertTitle>
+          <AlertDescription>{errorMessage}</AlertDescription>
+        </Alert>
+      ) : null}
 
-      {showFilteredEmpty ? (
+      {showEmptyState ? (
         <Card>
-          <CardContent className="flex flex-col items-center gap-2 py-14 text-center">
-            <div className="kicker">No results</div>
-            <div className="text-sm font-medium text-foreground">
-              No products found
+          <CardContent className="flex flex-col items-center gap-3 py-14 text-center">
+            <div className="flex flex-col gap-1">
+              <h2 className="text-base font-semibold text-foreground">
+                No products found
+              </h2>
+              <p className="max-w-md text-sm text-muted-foreground">
+                Try adjusting your search or filters, or add your first product.
+              </p>
             </div>
-            <div className="text-sm text-muted-foreground">
-              Try changing your search or filters.
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={resetFilters}
+                disabled={!hasActiveFilters}
+              >
+                Reset filters
+              </Button>
+              <Button asChild>
+                <Link href="/products/new">
+                  <Plus data-icon="inline-start" />
+                  Add product
+                </Link>
+              </Button>
             </div>
-            <Button
-              type="button"
-              variant="outline"
-              className="mt-3"
-              onClick={resetFilters}
-              disabled={!hasActiveFilters}
-            >
-              Reset filters
-            </Button>
           </CardContent>
         </Card>
       ) : (
         <ProductsTable
           products={products}
           loading={loading}
-          emptyLabel="No products found. Try changing your search or filters."
+          pageSize={limit}
+          onProductDeleted={handleProductDeleted}
         />
       )}
 
-      <div className="flex flex-col items-start justify-between gap-3 rounded-xl border border-hairline bg-card px-4 py-3 sm:flex-row sm:items-center">
-        <div className="text-xs text-muted-foreground">
-          {total === 0
-            ? "Showing 0 products"
-            : `Showing ${rangeStart}-${rangeEnd} of ${total} ${
-                total === 1 ? "product" : "products"
-              }`}
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">Rows</span>
-            <Select
-              value={String(limit)}
-              onValueChange={onLimitChange}
-              disabled={loading}
-            >
-              <SelectTrigger size="sm" className="h-8 w-[72px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {LIMIT_OPTIONS.map((option) => (
-                  <SelectItem key={option} value={String(option)}>
-                    {option}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
+      <Card size="sm">
+        <CardContent className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
           <div className="text-xs text-muted-foreground">
-            Page {totalPages === 0 ? 0 : currentPage} of {totalPages}
+            {total === 0
+              ? "Showing 0 products"
+              : `Showing ${rangeStart}-${rangeEnd} of ${total} ${
+                  total === 1 ? "product" : "products"
+                }`}
           </div>
 
-          <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={goPrev}
-              disabled={loading || currentPage <= 1}
-            >
-              <ChevronLeft className="size-4" strokeWidth={2} />
-              Previous
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={goNext}
-              disabled={loading || totalPages === 0 || currentPage >= totalPages}
-            >
-              Next
-              <ChevronRight className="size-4" strokeWidth={2} />
-            </Button>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">
+                Rows per page
+              </span>
+              <Select
+                value={String(limit)}
+                onValueChange={onLimitChange}
+                disabled={loading}
+              >
+                <SelectTrigger size="sm" className="w-[76px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    {LIMIT_OPTIONS.map((option) => (
+                      <SelectItem key={option} value={String(option)}>
+                        {option}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="text-xs text-muted-foreground">
+              Page {totalPages === 0 ? 0 : currentPage} of {totalPages}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={goPrev}
+                disabled={loading || currentPage <= 1}
+              >
+                <ChevronLeft data-icon="inline-start" />
+                Previous
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={goNext}
+                disabled={
+                  loading || totalPages === 0 || currentPage >= totalPages
+                }
+              >
+                Next
+                <ChevronRight data-icon="inline-end" />
+              </Button>
+            </div>
           </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

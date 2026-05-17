@@ -53,6 +53,19 @@ export type Product = {
   slug?: string;
   category: AdminProductCategoryValue;
   categoryId?: number | null;
+  subCategory?: {
+    id: number;
+    name: string;
+    slug: string;
+    categoryId: number;
+  } | null;
+  subCategoryId?: number | null;
+  brand?: {
+    id: number;
+    name: string;
+    slug: string;
+  } | null;
+  brandId?: number | null;
   price: string;
   stock: number;
   status: ProductStatus;
@@ -70,4 +83,6 @@ export type Product = {
   seoDescription?: string | null;
   description?: string;
   rating?: number;
+  createdAt?: string;
+  updatedAt?: string;
 };
