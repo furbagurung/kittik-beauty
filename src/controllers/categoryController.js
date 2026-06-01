@@ -19,6 +19,19 @@ function parseSortOrder(value) {
   return Number.isFinite(parsed) ? Math.trunc(parsed) : 0;
 }
 
+function normalizeOptionalString(value) {
+  if (value === undefined) return undefined;
+
+  const normalized = String(value ?? "").trim();
+  return normalized || null;
+}
+
+function getUploadedCategoryCoverImage(file) {
+  if (!file?.filename) return undefined;
+
+  return `/uploads/categories/${file.filename}`;
+}
+
 async function getUniqueCategorySlug(name, categoryIdToIgnore) {
   const baseSlug = slugify(name);
   let slug = baseSlug;
@@ -59,6 +72,7 @@ async function buildCategoryResponses(categories) {
     id: category.id,
     name: category.name,
     slug: category.slug,
+    coverImage: category.coverImage ?? null,
     sortOrder: category.sortOrder,
     productCount: productCountMap.get(category.id) ?? 0,
     createdAt: category.createdAt,
@@ -81,6 +95,33 @@ export async function getCategories(_req, res) {
   }
 }
 
+export async function getCategoryById(req, res) {
+  try {
+    const id = Number(req.params.id);
+
+    if (!Number.isInteger(id) || id <= 0) {
+      return res.status(400).json({ message: "Invalid category id" });
+    }
+
+    const category = await prisma.productCategory.findUnique({
+      where: { id },
+    });
+
+    if (!category) {
+      return res.status(404).json({ message: "Category not found" });
+    }
+
+    const [response] = await buildCategoryResponses([category]);
+
+    return res.json(response);
+  } catch (error) {
+    return res.status(500).json({
+      message: "Failed to load category",
+      error: error.message,
+    });
+  }
+}
+
 export async function createCategory(req, res) {
   try {
     const name = normalizeName(req.body?.name);
@@ -90,10 +131,14 @@ export async function createCategory(req, res) {
     }
 
     const slug = await getUniqueCategorySlug(name);
+    const uploadedCoverImage = getUploadedCategoryCoverImage(req.file);
+    const coverImage =
+      uploadedCoverImage ?? normalizeOptionalString(req.body?.coverImage);
     const category = await prisma.productCategory.create({
       data: {
         name,
         slug,
+        coverImage,
         sortOrder: parseSortOrder(req.body?.sortOrder),
       },
     });
@@ -137,12 +182,16 @@ export async function updateCategory(req, res) {
     }
 
     const slug = await getUniqueCategorySlug(name, id);
+    const uploadedCoverImage = getUploadedCategoryCoverImage(req.file);
+    const coverImage =
+      uploadedCoverImage ?? normalizeOptionalString(req.body?.coverImage);
     const updatedCategory = await prisma.$transaction(async (tx) => {
       const category = await tx.productCategory.update({
         where: { id },
         data: {
           name,
           slug,
+          ...(coverImage !== undefined ? { coverImage } : {}),
           sortOrder: parseSortOrder(req.body?.sortOrder),
         },
       });

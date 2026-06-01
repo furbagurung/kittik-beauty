@@ -10,6 +10,12 @@ import type {
 } from "@/types/product";
 
 const API_ORIGIN = RUNTIME_API_BASE_URL.replace(/\/api$/, "");
+
+export function resolveAdminAssetUrl(value?: string | null) {
+  if (!value) return "";
+
+  return value.startsWith("/uploads/") ? `${API_ORIGIN}${value}` : value;
+}
 export async function apiFetch<T>(
   endpoint: string,
   options?: RequestInit,
@@ -120,6 +126,7 @@ export type AdminApiProductCategory = {
   id: number;
   name: string;
   slug: string;
+  coverImage?: string | null;
   sortOrder: number;
   productCount: number;
   createdAt: string;
@@ -341,6 +348,15 @@ function buildReelMutationFormData(data: ReelMutationInput) {
   return formData;
 }
 
+function normalizeProductCategory(
+  category: AdminApiProductCategory,
+): AdminApiProductCategory {
+  return {
+    ...category,
+    coverImage: resolveAdminAssetUrl(category.coverImage),
+  };
+}
+
 export async function getProducts(): Promise<AdminApiProduct[]>;
 export async function getProducts(
   params: GetProductsParams,
@@ -398,21 +414,34 @@ export async function deleteProduct(id: number) {
 }
 
 export async function getProductCategories() {
-  return apiFetch<AdminApiProductCategory[]>("/categories");
+  const categories = await apiFetch<AdminApiProductCategory[]>("/categories");
+  return categories.map(normalizeProductCategory);
 }
 
 export async function createProductCategory(data: {
   name: string;
   sortOrder?: number;
+  coverImageFile?: File | null;
 }) {
-  return apiFetch<AdminApiProductCategory>(
+  const formData = new FormData();
+
+  formData.append("name", data.name);
+  formData.append("sortOrder", String(data.sortOrder ?? 0));
+
+  if (data.coverImageFile) {
+    formData.append("coverImage", data.coverImageFile);
+  }
+
+  const category = await apiFetch<AdminApiProductCategory>(
     "/categories",
     {
       method: "POST",
-      body: JSON.stringify(data),
+      body: formData,
     },
     getStoredAdminToken() || undefined,
   );
+
+  return normalizeProductCategory(category);
 }
 
 export async function updateProductCategory(
@@ -420,16 +449,28 @@ export async function updateProductCategory(
   data: {
     name: string;
     sortOrder?: number;
+    coverImageFile?: File | null;
   },
 ) {
-  return apiFetch<AdminApiProductCategory>(
+  const formData = new FormData();
+
+  formData.append("name", data.name);
+  formData.append("sortOrder", String(data.sortOrder ?? 0));
+
+  if (data.coverImageFile) {
+    formData.append("coverImage", data.coverImageFile);
+  }
+
+  const category = await apiFetch<AdminApiProductCategory>(
     `/categories/${id}`,
     {
       method: "PUT",
-      body: JSON.stringify(data),
+      body: formData,
     },
     getStoredAdminToken() || undefined,
   );
+
+  return normalizeProductCategory(category);
 }
 
 export async function deleteProductCategory(id: number) {
@@ -571,9 +612,7 @@ export async function getBanners() {
 
   return banners.map((banner) => ({
     ...banner,
-    image: banner.image.startsWith("/uploads/")
-      ? `${API_ORIGIN}${banner.image}`
-      : banner.image,
+    image: resolveAdminAssetUrl(banner.image),
   }));
 }
 

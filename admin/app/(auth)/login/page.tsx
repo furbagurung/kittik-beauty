@@ -21,11 +21,15 @@ export default function AdminLoginPage() {
   const [errorMessage, setErrorMessage] = useState("");
   const [interactiveStatus, setInteractiveStatus] = useState("server rendered");
   const [debugMessages, setDebugMessages] = useState<string[]>([]);
-  const [clock, setClock] = useState("00:00:00");
+  const [clock, setClock] = useState(() => formatClock(new Date()));
 
   useEffect(() => {
-    setInteractiveStatus("hydrated");
-    pushDebug("hydrated");
+    const id = window.setTimeout(() => {
+      setInteractiveStatus("hydrated");
+      pushDebug("hydrated");
+    }, 0);
+
+    return () => window.clearTimeout(id);
   }, []);
 
   useEffect(() => {
@@ -54,7 +58,6 @@ export default function AdminLoginPage() {
   }, []);
 
   useEffect(() => {
-    setClock(formatClock(new Date()));
     const id = setInterval(() => setClock(formatClock(new Date())), 1000);
     return () => clearInterval(id);
   }, []);
@@ -112,12 +115,13 @@ export default function AdminLoginPage() {
       pushDebug("done");
       router.replace("/");
     } catch (error) {
-      console.error("[admin-login] failed", error);
+      const message =
+        error instanceof Error ? error.message : "Admin login failed.";
+
+      console.warn("[admin-login] failed", message);
       setInteractiveStatus("error");
       pushDebug("error");
-      setErrorMessage(
-        error instanceof Error ? error.message : "Admin login failed.",
-      );
+      setErrorMessage(message);
     } finally {
       setLoading(false);
     }

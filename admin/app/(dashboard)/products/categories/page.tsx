@@ -21,7 +21,7 @@ import {
   type AdminApiProductCategory,
 } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
-import { Pencil, Plus, Trash2, X } from "lucide-react";
+import { ImagePlus, Pencil, Plus, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -43,6 +43,9 @@ export default function ProductCategoriesPage() {
   const [errorMessage, setErrorMessage] = useState("");
   const [name, setName] = useState("");
   const [sortOrder, setSortOrder] = useState("0");
+  const [coverImageFile, setCoverImageFile] = useState<File | null>(null);
+  const [coverPreviewUrl, setCoverPreviewUrl] = useState("");
+  const [coverInputKey, setCoverInputKey] = useState(0);
   const [editingCategory, setEditingCategory] =
     useState<AdminApiProductCategory | null>(null);
   const [deleteTarget, setDeleteTarget] =
@@ -85,9 +88,20 @@ export default function ProductCategoriesPage() {
     };
   }, []);
 
+  useEffect(() => {
+    return () => {
+      if (coverPreviewUrl.startsWith("blob:")) {
+        URL.revokeObjectURL(coverPreviewUrl);
+      }
+    };
+  }, [coverPreviewUrl]);
+
   function resetForm() {
     setName("");
     setSortOrder("0");
+    setCoverImageFile(null);
+    setCoverPreviewUrl("");
+    setCoverInputKey((current) => current + 1);
     setEditingCategory(null);
   }
 
@@ -95,7 +109,19 @@ export default function ProductCategoriesPage() {
     setEditingCategory(category);
     setName(category.name);
     setSortOrder(String(category.sortOrder));
+    setCoverImageFile(null);
+    setCoverPreviewUrl(category.coverImage || "");
+    setCoverInputKey((current) => current + 1);
     setErrorMessage("");
+  }
+
+  function handleCoverImageChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0] ?? null;
+
+    setCoverImageFile(file);
+    setCoverPreviewUrl(
+      file ? URL.createObjectURL(file) : editingCategory?.coverImage || "",
+    );
   }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -115,6 +141,7 @@ export default function ProductCategoriesPage() {
       const payload = {
         name: nextName,
         sortOrder: Number(sortOrder || 0),
+        coverImageFile,
       };
       const savedCategory = editingCategory
         ? await updateProductCategory(editingCategory.id, payload)
@@ -214,6 +241,35 @@ export default function ProductCategoriesPage() {
                 />
               </div>
 
+              <div className="grid gap-2">
+                <Label htmlFor="categoryCoverImage">Category Cover Image</Label>
+                <div className="overflow-hidden rounded-lg border border-dashed border-hairline bg-secondary/30">
+                  {coverPreviewUrl ? (
+                    <img
+                      src={coverPreviewUrl}
+                      alt="Category cover preview"
+                      className="aspect-video w-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex aspect-video items-center justify-center text-muted-foreground">
+                      <ImagePlus className="size-8" strokeWidth={1.7} />
+                    </div>
+                  )}
+                </div>
+                <Input
+                  key={coverInputKey}
+                  id="categoryCoverImage"
+                  type="file"
+                  accept="image/*"
+                  onChange={handleCoverImageChange}
+                  disabled={saving}
+                />
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  Upload a wide cover image for category banners and website
+                  sections. Recommended ratio: 16:9 or 4:3.
+                </p>
+              </div>
+
               <Button type="submit" disabled={saving}>
                 {isEditing ? (
                   <Pencil className="size-4" strokeWidth={2} />
@@ -246,6 +302,9 @@ export default function ProductCategoriesPage() {
                       Category
                     </th>
                     <th className="h-11 px-4 text-left font-mono text-[0.67rem] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+                      Cover
+                    </th>
+                    <th className="h-11 px-4 text-left font-mono text-[0.67rem] font-medium uppercase tracking-[0.12em] text-muted-foreground">
                       Products
                     </th>
                     <th className="h-11 px-4 text-left font-mono text-[0.67rem] font-medium uppercase tracking-[0.12em] text-muted-foreground">
@@ -263,7 +322,7 @@ export default function ProductCategoriesPage() {
                         key={index}
                         className="border-b border-hairline/70 last:border-b-0"
                       >
-                        <td className="px-4 py-4" colSpan={4}>
+                        <td className="px-4 py-4" colSpan={5}>
                           <div className="h-3.5 w-2/3 animate-pulse rounded-full bg-muted" />
                         </td>
                       </tr>
@@ -281,6 +340,19 @@ export default function ProductCategoriesPage() {
                           <div className="mt-1 font-mono text-xs text-muted-foreground">
                             {category.slug}
                           </div>
+                        </td>
+                        <td className="px-4 py-3.5">
+                          {category.coverImage ? (
+                            <img
+                              src={category.coverImage}
+                              alt=""
+                              className="h-12 w-20 rounded-md border border-hairline object-cover"
+                            />
+                          ) : (
+                            <span className="text-xs text-muted-foreground">
+                              No cover
+                            </span>
+                          )}
                         </td>
                         <td className="px-4 py-3.5 text-muted-foreground">
                           {category.productCount}
@@ -315,7 +387,7 @@ export default function ProductCategoriesPage() {
                   ) : (
                     <tr>
                       <td
-                        colSpan={4}
+                        colSpan={5}
                         className="px-6 py-14 text-center text-sm text-muted-foreground"
                       >
                         No categories yet.

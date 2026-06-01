@@ -5,6 +5,7 @@ import authRoutes from "./routes/authRoutes.js";
 import bannerRoutes from "./routes/bannerRoutes.js";
 import brandRoutes from "./routes/brandRoutes.js";
 import categoryRoutes from "./routes/categoryRoutes.js";
+import customerRoutes from "./routes/customerRoutes.js";
 import orderRoutes from "./routes/orderRoutes.js";
 import paymentRoutes from "./routes/paymentRoutes.js";
 import productRoutes from "./routes/productRoutes.js";
@@ -34,6 +35,7 @@ app.get("/api/health", (_req, res) => {
 app.use("/api/auth", authRoutes);
 app.use("/api/brands", brandRoutes);
 app.use("/api/categories", categoryRoutes);
+app.use("/api/customers", customerRoutes);
 app.use("/api/sub-categories", subCategoryRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/orders", orderRoutes);
@@ -51,6 +53,7 @@ app.get("/api/debug-routes", (_req, res) => {
       "/api/banners",
       "/api/brands",
       "/api/categories",
+      "/api/customers",
       "/api/health",
       "/api/orders",
       "/api/payments",
