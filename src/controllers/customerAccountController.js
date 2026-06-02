@@ -425,19 +425,32 @@ export async function addCustomerWishlistItem(req, res) {
       return res.status(404).json({ message: "Product not found" });
     }
 
-    await prisma.customerWishlist.upsert({
+    const existingWishlistItem = await prisma.customerWishlist.findFirst({
       where: {
-        customerId_productId: {
-          customerId: req.customer.id,
-          productId,
-        },
-      },
-      update: {},
-      create: {
         customerId: req.customer.id,
         productId,
       },
+      select: { id: true },
     });
+
+    if (existingWishlistItem) {
+      return res.json({ message: "Product already in wishlist", productId });
+    }
+
+    try {
+      await prisma.customerWishlist.create({
+        data: {
+          customerId: req.customer.id,
+          productId,
+        },
+      });
+    } catch (createError) {
+      if (createError?.code === "P2002") {
+        return res.json({ message: "Product already in wishlist", productId });
+      }
+
+      throw createError;
+    }
 
     return res.status(201).json({ message: "Product added to wishlist", productId });
   } catch (error) {
