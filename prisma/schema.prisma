@@ -34,6 +34,8 @@ model Customer {
   createdAt    DateTime          @default(now())
   updatedAt    DateTime          @updatedAt
   addresses    CustomerAddress[]
+  recentlyViewed CustomerRecentlyViewed[]
+  wishlist     CustomerWishlist[]
   orders       order[]
 
   @@map("customer")
@@ -57,6 +59,32 @@ model CustomerAddress {
 
   @@index([customerId], map: "CustomerAddress_customerId_idx")
   @@map("customeraddress")
+}
+
+model CustomerWishlist {
+  id         Int      @id @default(autoincrement())
+  customerId Int
+  productId  Int
+  createdAt  DateTime @default(now())
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade, map: "CustomerWishlist_customerId_fkey")
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade, map: "CustomerWishlist_productId_fkey")
+
+  @@unique([customerId, productId], map: "CustomerWishlist_customerId_productId_key")
+  @@index([productId], map: "CustomerWishlist_productId_idx")
+  @@map("customerwishlist")
+}
+
+model CustomerRecentlyViewed {
+  id         Int      @id @default(autoincrement())
+  customerId Int
+  productId  Int
+  viewedAt   DateTime @default(now())
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade, map: "CustomerRecentlyViewed_customerId_fkey")
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade, map: "CustomerRecentlyViewed_productId_fkey")
+
+  @@unique([customerId, productId], map: "CustomerRecentlyViewed_customerId_productId_key")
+  @@index([productId], map: "CustomerRecentlyViewed_productId_idx")
+  @@map("customerrecentlyviewed")
 }
 model Banner {
   id        Int      @id @default(autoincrement())
@@ -132,6 +160,8 @@ model Product {
   productmedia     ProductMedia[]
   options          ProductOption[]
   producttag       producttag[]
+  customerRecentlyViewed CustomerRecentlyViewed[]
+  customerWishlist CustomerWishlist[]
   variants         ProductVariant[]
   reelevent        reelevent[]
   reelproducttag   reelproducttag[]

@@ -1,11 +1,16 @@
 import express from "express";
 import {
+  addCustomerWishlistItem,
   createCustomerAddress,
   deleteCustomerAddress,
+  deleteCustomerWishlistItem,
   getCustomerAddresses,
   getCustomerOrderById,
   getCustomerOrders,
+  getCustomerRecentlyViewed,
+  getCustomerWishlist,
   setDefaultCustomerAddress,
+  trackCustomerRecentlyViewed,
   updateCustomerAddress,
 } from "../controllers/customerAccountController.js";
 import {
@@ -32,6 +37,11 @@ router.post("/addresses", protectCustomer, createCustomerAddress);
 router.patch("/addresses/:id/default", protectCustomer, setDefaultCustomerAddress);
 router.patch("/addresses/:id", protectCustomer, updateCustomerAddress);
 router.delete("/addresses/:id", protectCustomer, deleteCustomerAddress);
+router.get("/wishlist", protectCustomer, getCustomerWishlist);
+router.post("/wishlist", protectCustomer, addCustomerWishlistItem);
+router.delete("/wishlist/:productId", protectCustomer, deleteCustomerWishlistItem);
+router.get("/recently-viewed", protectCustomer, getCustomerRecentlyViewed);
+router.post("/recently-viewed", protectCustomer, trackCustomerRecentlyViewed);
 router.post("/logout", protectCustomer, logoutCustomer);
 
 export default router;

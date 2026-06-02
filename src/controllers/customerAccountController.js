@@ -1,4 +1,34 @@
 import { prisma } from "../config/prisma.js";
+import { buildProductResponse } from "../utils/productImageUtils.js";
+
+const RECENTLY_VIEWED_LIMIT = 12;
+
+const ACCOUNT_PRODUCT_INCLUDE = {
+  category: true,
+  subCategory: {
+    include: {
+      category: true,
+    },
+  },
+  brand: true,
+  productmedia: true,
+  producttag: true,
+  options: {
+    include: {
+      values: true,
+    },
+  },
+  variants: {
+    include: {
+      selections: {
+        include: {
+          option: true,
+          optionValue: true,
+        },
+      },
+    },
+  },
+};
 
 const ORDER_ITEM_SELECT = {
   id: true,
@@ -107,6 +137,20 @@ function hasRequiredAddressFields(address) {
 function parseCustomerResourceId(value) {
   const id = Number(value);
   return Number.isInteger(id) && id > 0 ? id : null;
+}
+
+async function getExistingProduct(productId) {
+  return prisma.product.findUnique({
+    where: { id: productId },
+    select: { id: true },
+  });
+}
+
+function serializeProductItems(items, req, productKey = "product") {
+  return items
+    .map((item) => item[productKey])
+    .filter(Boolean)
+    .map((product) => buildProductResponse(product, req));
 }
 
 export async function getCustomerOrders(req, res) {
@@ -341,6 +385,163 @@ export async function setDefaultCustomerAddress(req, res) {
   } catch (error) {
     return res.status(500).json({
       message: "Failed to update default address",
+      error: error.message,
+    });
+  }
+}
+
+export async function getCustomerWishlist(req, res) {
+  try {
+    const items = await prisma.customerWishlist.findMany({
+      where: { customerId: req.customer.id },
+      include: {
+        product: {
+          include: ACCOUNT_PRODUCT_INCLUDE,
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    return res.json({ products: serializeProductItems(items, req) });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Failed to fetch customer wishlist",
+      error: error.message,
+    });
+  }
+}
+
+export async function addCustomerWishlistItem(req, res) {
+  try {
+    const productId = parseCustomerResourceId(req.body.productId);
+
+    if (!productId) {
+      return res.status(400).json({ message: "Valid product id is required" });
+    }
+
+    const product = await getExistingProduct(productId);
+
+    if (!product) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    await prisma.customerWishlist.upsert({
+      where: {
+        customerId_productId: {
+          customerId: req.customer.id,
+          productId,
+        },
+      },
+      update: {},
+      create: {
+        customerId: req.customer.id,
+        productId,
+      },
+    });
+
+    return res.status(201).json({ message: "Product added to wishlist", productId });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Failed to add wishlist item",
+      error: error.message,
+    });
+  }
+}
+
+export async function deleteCustomerWishlistItem(req, res) {
+  try {
+    const productId = parseCustomerResourceId(req.params.productId);
+
+    if (!productId) {
+      return res.status(400).json({ message: "Invalid product id" });
+    }
+
+    await prisma.customerWishlist.deleteMany({
+      where: {
+        customerId: req.customer.id,
+        productId,
+      },
+    });
+
+    return res.json({ message: "Product removed from wishlist", productId });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Failed to remove wishlist item",
+      error: error.message,
+    });
+  }
+}
+
+export async function getCustomerRecentlyViewed(req, res) {
+  try {
+    const items = await prisma.customerRecentlyViewed.findMany({
+      where: { customerId: req.customer.id },
+      include: {
+        product: {
+          include: ACCOUNT_PRODUCT_INCLUDE,
+        },
+      },
+      orderBy: { viewedAt: "desc" },
+      take: RECENTLY_VIEWED_LIMIT,
+    });
+
+    return res.json({ products: serializeProductItems(items, req) });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Failed to fetch recently viewed products",
+      error: error.message,
+    });
+  }
+}
+
+export async function trackCustomerRecentlyViewed(req, res) {
+  try {
+    const productId = parseCustomerResourceId(req.body.productId);
+
+    if (!productId) {
+      return res.status(400).json({ message: "Valid product id is required" });
+    }
+
+    const product = await getExistingProduct(productId);
+
+    if (!product) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    await prisma.customerRecentlyViewed.upsert({
+      where: {
+        customerId_productId: {
+          customerId: req.customer.id,
+          productId,
+        },
+      },
+      update: { viewedAt: new Date() },
+      create: {
+        customerId: req.customer.id,
+        productId,
+      },
+    });
+
+    const staleItems = await prisma.customerRecentlyViewed.findMany({
+      where: { customerId: req.customer.id },
+      orderBy: { viewedAt: "desc" },
+      skip: RECENTLY_VIEWED_LIMIT,
+      select: { id: true },
+    });
+
+    if (staleItems.length) {
+      await prisma.customerRecentlyViewed.deleteMany({
+        where: {
+          id: { in: staleItems.map((item) => item.id) },
+          customerId: req.customer.id,
+        },
+      });
+    }
+
+    return res.status(201).json({ message: "Recently viewed product tracked", productId });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Failed to track recently viewed product",
       error: error.message,
     });
   }
