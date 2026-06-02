@@ -148,6 +148,17 @@ export async function createOrder(req, res) {
       }
     }
 
+    const currentUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { email: true },
+    });
+    const linkedCustomer = currentUser?.email
+      ? await prisma.customer.findUnique({
+          where: { email: currentUser.email },
+          select: { id: true },
+        })
+      : null;
+
     const order = await prisma.$transaction(async (tx) => {
       for (const item of orderItems) {
         if (
@@ -187,6 +198,7 @@ export async function createOrder(req, res) {
       const createdOrder = await tx.order.create({
         data: {
           userId,
+          customerId: linkedCustomer?.id ?? null,
           fullName,
           phone,
           address,

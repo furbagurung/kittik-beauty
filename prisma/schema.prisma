@@ -24,17 +24,39 @@ model User {
 }
 
 model Customer {
-  id           Int      @id @default(autoincrement())
+  id           Int               @id @default(autoincrement())
   fullName     String
-  email        String   @unique(map: "Customer_email_key")
+  email        String            @unique(map: "Customer_email_key")
   phone        String?
   passwordHash String
-  role         String   @default("customer")
-  status       String   @default("active")
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  role         String            @default("customer")
+  status       String            @default("active")
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  addresses    CustomerAddress[]
+  orders       order[]
 
   @@map("customer")
+}
+
+model CustomerAddress {
+  id           Int      @id @default(autoincrement())
+  customerId   Int
+  fullName     String
+  phone        String
+  addressLine1 String
+  addressLine2 String?
+  city         String
+  area         String?
+  landmark     String?
+  province     String?
+  isDefault    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  customer     Customer @relation(fields: [customerId], references: [id], onDelete: Cascade, map: "CustomerAddress_customerId_fkey")
+
+  @@index([customerId], map: "CustomerAddress_customerId_idx")
+  @@map("customeraddress")
 }
 model Banner {
   id        Int      @id @default(autoincrement())
@@ -51,6 +73,7 @@ model Banner {
 model order {
   id            Int         @id @default(autoincrement())
   userId        Int
+  customerId    Int?
   fullName      String
   phone         String
   address       String
@@ -63,8 +86,10 @@ model order {
   stockRestored Boolean     @default(false)
   createdAt     DateTime    @default(now())
   user          User        @relation(fields: [userId], references: [id], onDelete: NoAction, map: "Order_userId_fkey")
+  customer      Customer?   @relation(fields: [customerId], references: [id], onDelete: SetNull, map: "Order_customerId_fkey")
   orderitem     orderitem[]
 
+  @@index([customerId], map: "Order_customerId_idx")
   @@index([userId], map: "Order_userId_fkey")
 }
 
