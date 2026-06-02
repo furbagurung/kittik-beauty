@@ -33,14 +33,129 @@ function buildOrderResponse(order) {
   };
 }
 
+function toTrimmedString(value) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function toNullableTrimmedString(value) {
+  const trimmed = toTrimmedString(value);
+  return trimmed || null;
+}
+
+function composeAddress({
+  addressLine1,
+  addressLine2,
+  city,
+  area,
+  landmark,
+  province,
+}) {
+  const primary = [
+    addressLine1,
+    addressLine2,
+    area,
+    city,
+    province,
+  ].filter(Boolean);
+  const address = primary.join(", ");
+
+  return landmark ? `${address} (Landmark: ${landmark})` : address;
+}
+
+function buildManualAddressPayload(body) {
+  const addressLine1 = toTrimmedString(body.addressLine1);
+  const city = toTrimmedString(body.city);
+
+  if (!addressLine1 || !city) {
+    return null;
+  }
+
+  return {
+    fullName: toTrimmedString(body.fullName),
+    phone: toTrimmedString(body.phone),
+    addressLine1,
+    addressLine2: toNullableTrimmedString(body.addressLine2),
+    city,
+    area: toNullableTrimmedString(body.area),
+    landmark: toNullableTrimmedString(body.landmark),
+    province: toNullableTrimmedString(body.province),
+  };
+}
+
+async function resolveCheckoutAddress(req) {
+  const { savedAddressId } = req.body;
+
+  if (savedAddressId !== undefined && savedAddressId !== null && savedAddressId !== "") {
+    if (!req.customer) {
+      return {
+        errorStatus: 401,
+        message: "Customer login required to use a saved address",
+      };
+    }
+
+    const addressId = Number(savedAddressId);
+
+    if (!Number.isInteger(addressId)) {
+      return { errorStatus: 400, message: "Invalid saved address" };
+    }
+
+    const savedAddress = await prisma.customerAddress.findFirst({
+      where: {
+        id: addressId,
+        customerId: req.customer.id,
+      },
+    });
+
+    if (!savedAddress) {
+      return { errorStatus: 404, message: "Saved address not found" };
+    }
+
+    return {
+      fullName: savedAddress.fullName,
+      phone: savedAddress.phone,
+      address: composeAddress(savedAddress),
+      selectedAddress: savedAddress,
+      manualAddressPayload: null,
+    };
+  }
+
+  const fullName = toTrimmedString(req.body.fullName || req.customer?.fullName);
+  const phone = toTrimmedString(req.body.phone || req.customer?.phone);
+  const manualAddressPayload = buildManualAddressPayload({
+    ...req.body,
+    fullName,
+    phone,
+  });
+  const address =
+    toTrimmedString(req.body.address) ||
+    (manualAddressPayload ? composeAddress(manualAddressPayload) : "");
+
+  if (!fullName || !phone || !address) {
+    return { errorStatus: 400, message: "Missing checkout information" };
+  }
+
+  if (req.body.saveAddress === true && req.customer && !manualAddressPayload) {
+    return {
+      errorStatus: 400,
+      message: "Structured address fields are required to save this address",
+    };
+  }
+
+  return {
+    fullName,
+    phone,
+    address,
+    selectedAddress: null,
+    manualAddressPayload,
+  };
+}
+
 export async function createOrder(req, res) {
   try {
-    const userId = req.user.id;
+    const userId = req.user?.id === undefined ? null : Number(req.user.id);
+    const tokenCustomerId = req.customer?.id ?? null;
     const {
       items,
-      fullName,
-      phone,
-      address,
       paymentMethod,
       subtotal,
       deliveryFee,
@@ -53,8 +168,16 @@ export async function createOrder(req, res) {
       return res.status(400).json({ message: "Order items are required" });
     }
 
-    if (!fullName || !phone || !address || !paymentMethod) {
+    if (!paymentMethod) {
       return res.status(400).json({ message: "Missing checkout information" });
+    }
+
+    const checkoutAddress = await resolveCheckoutAddress(req);
+
+    if (checkoutAddress.errorStatus) {
+      return res
+        .status(checkoutAddress.errorStatus)
+        .json({ message: checkoutAddress.message });
     }
 
     const normalizedItems = items.map((item) => ({
@@ -148,16 +271,20 @@ export async function createOrder(req, res) {
       }
     }
 
-    const currentUser = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { email: true },
-    });
-    const linkedCustomer = currentUser?.email
-      ? await prisma.customer.findUnique({
-          where: { email: currentUser.email },
-          select: { id: true },
+    const currentUser = userId
+      ? await prisma.user.findUnique({
+          where: { id: userId },
+          select: { email: true },
         })
       : null;
+    const linkedCustomer =
+      !tokenCustomerId && currentUser?.email
+        ? await prisma.customer.findUnique({
+            where: { email: currentUser.email },
+            select: { id: true },
+          })
+        : null;
+    const orderCustomerId = tokenCustomerId ?? linkedCustomer?.id ?? null;
 
     const order = await prisma.$transaction(async (tx) => {
       for (const item of orderItems) {
@@ -198,10 +325,10 @@ export async function createOrder(req, res) {
       const createdOrder = await tx.order.create({
         data: {
           userId,
-          customerId: linkedCustomer?.id ?? null,
-          fullName,
-          phone,
-          address,
+          customerId: orderCustomerId,
+          fullName: checkoutAddress.fullName,
+          phone: checkoutAddress.phone,
+          address: checkoutAddress.address,
           paymentMethod,
           subtotal: Number(subtotal),
           deliveryFee: Number(deliveryFee),
@@ -222,6 +349,34 @@ export async function createOrder(req, res) {
           orderitem: true,
         },
       });
+
+      if (
+        orderCustomerId &&
+        req.body.saveAddress === true &&
+        !checkoutAddress.selectedAddress &&
+        checkoutAddress.manualAddressPayload
+      ) {
+        const shouldSetDefault =
+          req.body.isDefault === true ||
+          (await tx.customerAddress.count({
+            where: { customerId: orderCustomerId },
+          })) === 0;
+
+        if (shouldSetDefault) {
+          await tx.customerAddress.updateMany({
+            where: { customerId: orderCustomerId },
+            data: { isDefault: false },
+          });
+        }
+
+        await tx.customerAddress.create({
+          data: {
+            ...checkoutAddress.manualAddressPayload,
+            customerId: orderCustomerId,
+            isDefault: shouldSetDefault,
+          },
+        });
+      }
 
       return createdOrder;
     });

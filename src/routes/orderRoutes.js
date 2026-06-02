@@ -7,16 +7,15 @@ import {
     updateOrderStatus,
 } from "../controllers/orderController.js";
 import { isAdmin, protect } from "../middleware/authMiddleware.js";
+import { optionalOrderAuth } from "../middleware/orderAuthMiddleware.js";
 const router = express.Router();
 
-router.use(protect);
-
 // CUSTOMER ROUTES
-router.post("/", createOrder);
-router.get("/", getUserOrders);
-router.get("/:id", getOrderById);
-router.patch("/:id/cancel", cancelOwnOrder);
+router.post("/", optionalOrderAuth, createOrder);
+router.get("/", protect, getUserOrders);
+router.get("/:id", protect, getOrderById);
+router.patch("/:id/cancel", protect, cancelOwnOrder);
 // ADMIN ROUTES
-router.patch("/:id/status", isAdmin, updateOrderStatus);
+router.patch("/:id/status", protect, isAdmin, updateOrderStatus);
 
 export default router;

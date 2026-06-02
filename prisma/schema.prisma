@@ -100,7 +100,7 @@ model Banner {
 }
 model order {
   id            Int         @id @default(autoincrement())
-  userId        Int
+  userId        Int?
   customerId    Int?
   fullName      String
   phone         String
@@ -113,7 +113,7 @@ model order {
   status        String      @default("pending_payment")
   stockRestored Boolean     @default(false)
   createdAt     DateTime    @default(now())
-  user          User        @relation(fields: [userId], references: [id], onDelete: NoAction, map: "Order_userId_fkey")
+  user          User?       @relation(fields: [userId], references: [id], onDelete: SetNull, map: "Order_userId_fkey")
   customer      Customer?   @relation(fields: [customerId], references: [id], onDelete: SetNull, map: "Order_customerId_fkey")
   orderitem     orderitem[]
 
